@@ -84,9 +84,12 @@ enum class HomingState {
 static HomingState g_homingState = HomingState::IDLE;
 static uint8_t g_homingProgress = 0;
 static int32_t g_detectedRightLimit = 0;
-static const int32_t HOMING_SPEED = 100;  // steps/sec for homing
+static const int32_t HOMING_SPEED = 500;  // steps/sec for homing (increased from 100)
 static const int32_t BACKOFF_STEPS = 50;  // steps to back off from limits
 static const int32_t POSITION_MARGIN = 10; // safety margin from limits
+static const uint32_t HOMING_TIMEOUT_MS = 30000; // 30 second timeout for finding limits
+static uint32_t g_homingStartTime = 0;
+static uint32_t g_homingPhaseStartTime = 0;
 
 // CL57Y ALARM monitoring
 static bool g_alarmState = false;
@@ -181,6 +184,13 @@ static void updateHomingSequence() {
         return; // Skip this cycle if can't get mutex quickly
     }
     
+    // Check for overall homing timeout
+    if (millis() - g_homingStartTime > HOMING_TIMEOUT_MS) {
+        g_homingState = HomingState::ERROR;
+        g_stepper->forceStop();
+        Serial.println("StepperController: ERROR - Homing timeout!");
+    }
+    
     switch (g_homingState) {
         case HomingState::FINDING_LEFT:
             g_homingProgress = 10;
@@ -188,6 +198,7 @@ static void updateHomingSequence() {
                 // Found left limit
                 g_stepper->forceStop();
                 g_homingState = HomingState::BACKING_OFF_LEFT;
+                g_homingPhaseStartTime = millis();
                 Serial.println("StepperController: Found left limit");
             } else if (!g_stepper->isRunning()) {
                 // Movement stopped without finding limit - error
@@ -207,10 +218,11 @@ static void updateHomingSequence() {
                 g_currentPosition = 0;
                 g_minPosition = POSITION_MARGIN;
                 
-                // Start moving to find right limit
+                // Start moving to find right limit - use a much larger distance
                 g_stepper->setSpeedInHz(HOMING_SPEED);
-                g_stepper->moveTo(MAX_POSITION_STEPS * 2); // Move far enough to find limit
+                g_stepper->moveTo(100000); // Move 100k steps - should hit limit before this
                 g_homingState = HomingState::FINDING_RIGHT;
+                g_homingPhaseStartTime = millis();
                 Serial.println("StepperController: Home position set, finding right limit");
             }
             break;
@@ -222,11 +234,17 @@ static void updateHomingSequence() {
                 g_detectedRightLimit = g_stepper->getCurrentPosition();
                 g_stepper->forceStop();
                 g_homingState = HomingState::BACKING_OFF_RIGHT;
+                g_homingPhaseStartTime = millis();
                 Serial.printf("StepperController: Found right limit at position %d\n", g_detectedRightLimit);
             } else if (!g_stepper->isRunning()) {
                 // Movement stopped without finding limit - error
                 g_homingState = HomingState::ERROR;
-                Serial.println("StepperController: ERROR - Right limit not found");
+                Serial.println("StepperController: ERROR - Right limit not found (reached max travel)");
+            } else if (millis() - g_homingPhaseStartTime > HOMING_TIMEOUT_MS) {
+                // Timeout waiting for right limit
+                g_stepper->forceStop();
+                g_homingState = HomingState::ERROR;
+                Serial.println("StepperController: ERROR - Right limit not found (timeout)");
             }
             break;
             
@@ -260,9 +278,11 @@ static void updateHomingSequence() {
                 g_systemHomed = true;
                 g_motionState = MotionState::IDLE;
                 
+                uint32_t homingTime = millis() - g_homingStartTime;
                 Serial.println("StepperController: Homing complete!");
                 Serial.printf("StepperController: Position range: %d to %d (%d total steps)\n",
                              g_minPosition, g_maxPosition, g_maxPosition - g_minPosition);
+                Serial.printf("StepperController: Homing took %lu ms\n", homingTime);
             }
             break;
             
@@ -361,14 +381,19 @@ static void startHomingSequence() {
     g_homingProgress = 0;
     g_systemHomed = false;
     g_positionLimitsValid = false;
+    g_homingStartTime = millis();
+    g_homingPhaseStartTime = millis();
     
     // Set slow speed for homing
     g_stepper->setSpeedInHz(HOMING_SPEED);
     g_stepper->setAcceleration(g_currentProfile.acceleration);
     
-    // Start moving toward left limit
-    g_stepper->moveTo(-MAX_POSITION_STEPS * 2); // Move far enough to find limit
+    // Start moving toward left limit - use a large distance
+    g_stepper->moveTo(-100000); // Move far enough to find limit
     g_motionState = MotionState::HOMING;
+    
+    Serial.printf("StepperController: Homing at %d steps/sec, timeout %lu ms\n", 
+                  HOMING_SPEED, HOMING_TIMEOUT_MS);
 }
 
 // ============================================================================

@@ -1033,7 +1033,11 @@ namespace SerialInterface {
     Serial.println("\n=== SkullStepperV4 Commands ===");
     Serial.println("Motion Commands:");
     Serial.println("  MOVE <position>     - Move to absolute position");
-    Serial.println("  HOME                - Start homing sequence");
+    Serial.println("  HOME                - Start auto-range homing sequence:");
+    Serial.println("                        1. Find left limit & set as home (0)");
+    Serial.println("                        2. Find right limit to determine range");
+    Serial.println("                        3. Set operating bounds with safety margins");
+    Serial.println("                        4. Move to center of detected range");
     Serial.println("  STOP                - Stop current motion");
     Serial.println("  ESTOP               - Emergency stop");
     Serial.println("  ENABLE              - Enable stepper motor");
