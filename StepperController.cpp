@@ -388,8 +388,32 @@ static void startHomingSequence() {
     g_stepper->setSpeedInHz(HOMING_SPEED);
     g_stepper->setAcceleration(g_currentProfile.acceleration);
     
-    // Start moving toward left limit - use a large distance
-    g_stepper->moveTo(-100000); // Move far enough to find limit
+    // Check initial limit switch states
+    if (g_leftLimitState && g_rightLimitState) {
+        // Both limits active - error condition
+        Serial.println("StepperController: ERROR - Both limit switches active!");
+        g_homingState = HomingState::ERROR;
+        g_motionState = MotionState::IDLE;
+        return;
+    }
+    
+    // Check if we're already at left limit
+    if (g_leftLimitState) {
+        Serial.println("StepperController: Already at left limit, backing off");
+        g_homingState = HomingState::BACKING_OFF_LEFT;
+        g_stepper->move(BACKOFF_STEPS * 2); // Back off a bit more since we don't know exact position
+    } 
+    // Check if we're at right limit (need to move left first)
+    else if (g_rightLimitState) {
+        Serial.println("StepperController: At right limit, moving to find left limit");
+        g_stepper->moveTo(-100000); // Move left to find left limit
+    }
+    // Normal case - not at any limit
+    else {
+        Serial.println("StepperController: Not at limits, moving to find left limit");
+        g_stepper->moveTo(-100000); // Move left to find left limit
+    }
+    
     g_motionState = MotionState::HOMING;
     
     Serial.printf("StepperController: Homing at %d steps/sec, timeout %lu ms\n", 
@@ -523,6 +547,10 @@ bool initialize() {
     // Initialize limit states
     g_leftLimitState = (digitalRead(LEFT_LIMIT_PIN) == LOW);
     g_rightLimitState = (digitalRead(RIGHT_LIMIT_PIN) == LOW);
+    
+    // Initialize limit flags to current state so we handle them properly
+    g_leftLimitTriggered = g_leftLimitState;
+    g_rightLimitTriggered = g_rightLimitState;
     
     g_initialized = true;
     
