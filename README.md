@@ -6,7 +6,7 @@ This is a comprehensive modular stepper motor control system with DMX input and 
 
 ## Development Status
 
-**Current Phase: Phase 4 (StepperController with S-Curve) - IN PROGRESS 🔄**
+**Current Phase: Phase 4 (StepperController with ODStepper) - MAJOR PROGRESS 🚀**
 
 ### ✅ Phase 1: Foundation (Complete - Hardware Tested)
 - [x] HardwareConfig.h - Pin assignments and hardware constants
@@ -46,17 +46,27 @@ This is a comprehensive modular stepper motor control system with DMX input and 
 - [x] **DMX Configuration Interface** - Complete DMX parameter control
 - [x] **Enhanced JSON Config Output** - Metadata with ranges, units, and validation info
 
-### 🔄 Phase 4: StepperController Module (IN PROGRESS - ODStepper Implementation)
+### 🚀 Phase 4: StepperController Module (MAJOR PROGRESS - ODStepper Implementation)
 - [x] **Thread-Safe Infrastructure** - GlobalInfrastructure.cpp with FreeRTOS mutexes/queues
-- [ ] **ODStepper Integration** - Using ODStepper library (FastAccelStepper with open-drain)
-- [ ] **Motion Profile Management** - Thread-safe wrappers for speed/acceleration control
-- [ ] **Dynamic Target Updates** - Seamless position changes while moving (for DMX)
-- [ ] **Software Position Limits** - Min/max position enforcement
-- [ ] **Hardware Limit Switches** - LEFT_LIMIT and RIGHT_LIMIT implementation
-- [ ] **Homing Routine** - Find home position using limit switches
-- [ ] **Integration with SerialInterface** - Command queue processing
-- [ ] **CL57Y ALARM Monitoring** - Position following error detection
-- [ ] **Safety Features** - Limit monitoring, emergency stop, position validation
+- [x] **ODStepper Integration** - Successfully integrated with FastAccelStepper backend
+- [x] **Motion Profile Management** - Thread-safe speed/acceleration control
+- [x] **Dynamic Target Updates** - Seamless position changes while moving (ready for DMX)
+- [x] **Software Position Limits** - Min/max position enforcement
+- [x] **Hardware Limit Switches** - LEFT_LIMIT (GPIO 17) and RIGHT_LIMIT (GPIO 18) fully functional
+- [x] **Auto-Range Homing Routine** - Detects physical travel limits automatically
+- [x] **Integration with SerialInterface** - All motion commands working
+- [x] **CL57Y ALARM Monitoring** - Position following error detection on GPIO 8
+- [x] **Enhanced Noise Filtering** - 3-sample validation + 100ms debounce
+- [x] **Continuous Limit Monitoring** - Fixed critical bug, limits now stop motion reliably
+- [x] **Position Holding** - Motor stays enabled by default
+- [x] **New Commands** - PARAMS (list parameters) and TEST (range test) commands
+
+**Recent Fixes (2025-01-30):**
+- Fixed limit switch emergency stop bug - now properly stops when limits active
+- Added hardware RC filter recommendations (1kΩ + 0.1µF) for EMI immunity
+- Extended homing timeout to 90 seconds for longer travel
+- Added continuous limit monitoring every 1ms during operation
+- TEST command validates homing before running
 
 ### 🔄 Next Phases (Planned)
 - [ ] **Phase 5:** SafetyMonitor Module (Limit switches, CL57Y alarm monitoring)
@@ -290,66 +300,59 @@ Position Tracking          ALARM Signal
 - **enableStepperAlarm**: boolean (Monitor CL57Y ALARM signal)
 - **emergencyDeceleration**: 100-50000 steps/sec² (Emergency stop rate)
 
-## Phase 4 Current Implementation
+## Next Steps for Project Continuation
 
-### **S-Curve Motion Control (Completed)**
+### Immediate Testing Needed:
+1. **Hardware RC Filters** - Build and install 1kΩ + 0.1µF filters on limit switches
+2. **Verify Limit Protection** - Test that limits reliably stop motion during operation
+3. **Range Test** - Run TEST command for extended periods to verify smooth operation
+4. **Speed/Acceleration Tuning** - Find optimal values for your mechanical setup
 
-**1. Sigmoid Acceleration Function**
-```cpp
-float calculateSCurveSpeed(float normalizedTime, float maxSpeed) {
-    float k = 6.0f;  // Smoothness factor
-    float sigmoid = 1.0f / (1.0f + exp(-k * (normalizedTime - 0.5f)));
-    return maxSpeed * sigmoid;
-}
-```
+### Phase 5 - SafetyMonitor Module (Next):
+- Most safety features already implemented in StepperController
+- Could be refactored into separate module for cleaner architecture
+- Add watchdog timer for motion timeouts
+- Add position following error detection beyond just ALARM pin
 
-**2. Hardware Timer-Based Pulse Generation**
-```cpp
-static esp_timer_handle_t g_stepPulseTimer = nullptr;
-static esp_timer_handle_t g_stepIdleTimer = nullptr;
-// 25% duty cycle: 75% LOW (step active), 25% HIGH (idle)
-```
+### Phase 6 - DMXReceiver Module:
+- Implement DMX512 packet reception on UART2
+- Add packet validation and timing checks
+- Scale DMX values (0-255) to position using dmxScale and dmxOffset
+- Queue position updates to StepperController
+- Handle DMX timeout conditions
 
-**3. Thread-Safe Position Tracking**
-```cpp
-// Track COMMANDED position (not actual motor position)
-static volatile int32_t g_currentPosition = 0;
-void stepPulseEndISR(void* arg) {
-    if (g_directionForward) {
-        g_currentPosition++;
-    } else {
-        g_currentPosition--;
-    }
-}
-```
+### Known Issues to Address:
+1. **EMI Sensitivity** - Hardware RC filters strongly recommended
+2. **No Automatic Recovery** - System doesn't auto-recover from limit activation
+3. **No Position Persistence** - Position lost on power cycle (could save to flash)
 
-### **Integration Status (Completed)**
-- ✅ **Complete SerialInterface Integration**: All commands and JSON API preserved
-- ✅ **Thread-Safe Infrastructure**: FreeRTOS mutexes and queues operational
-- ✅ **ESP32 Flash Storage**: Configuration persistence maintained
-- ✅ **S-Curve Algorithm**: Ultra-smooth motion profiles implemented
-
-### **Next Phase 4 Tasks**
-- [ ] **CL57Y ALARM Integration**: Monitor ALARM pin for following errors
-- [ ] **25% Duty Cycle Validation**: Verify pulse timing meets CL57Y requirements
-- [ ] **Real-World Testing**: Validate smooth motion and eliminate stepping sounds
-- [ ] **Performance Optimization**: Fine-tune for maximum smoothness
+### Production Considerations:
+1. **Mechanical Calibration** - Adjust STEPPER_STEPS_PER_REV in HardwareConfig.h
+2. **Travel Limits** - Ensure homing timeout is sufficient for full travel
+3. **Emergency Stop** - Consider external E-stop button on interrupt pin
+4. **Status LEDs** - Add visual indicators for limits, homing, errors
 
 ## Current Status Summary
 
 ✅ **Phase 1**: Hardware foundation and module framework - COMPLETE  
 ✅ **Phase 2**: Configuration management with flash storage - COMPLETE  
 ✅ **Phase 3**: Interactive command interface (human & JSON) - COMPLETE  
-🔄 **Phase 4**: Motion control with ODStepper integration - IN PROGRESS (implementation)  
+🚀 **Phase 4**: Motion control with ODStepper integration - MAJOR PROGRESS  
+🔄 **Phase 5**: SafetyMonitor module - PARTIALLY IMPLEMENTED (via StepperController)
+📝 **Phase 6**: DMXReceiver module - PLANNED
 
-**Current State: System has complete interactive control, thread-safe operation, and persistent configuration. Ready for StepperController implementation using ODStepper library.**
+**Current State: System has complete motion control with auto-range homing, limit switch protection, noise filtering, and comprehensive command interface. Ready for production testing!**
 
-**Recent Development (2025-01-28):**
-- Implementing ODStepper library integration for motion control
-- Thread-safe wrapper design with Core 0 real-time task
-- Auto-range detection homing sequence design
-- Trapezoidal motion profiles with dynamic target updates for DMX
-- Minimal ISR design for limit switches to avoid timing conflicts
+**Recent Development (2025-01-30):**
+- ✅ Successfully integrated ODStepper/FastAccelStepper for smooth motion control
+- ✅ Implemented complete auto-range homing sequence that detects physical limits
+- ✅ Fixed critical limit switch bug - now properly stops motion during operation
+- ✅ Added enhanced noise filtering with 3-sample validation
+- ✅ Added PARAMS command to list all configurable parameters with ranges
+- ✅ Added TEST command for automated range testing (10% to 90% of detected range)
+- ✅ Motor now holds position by default (prevents unwanted movement)
+- ✅ Extended homing timeout to 90 seconds for longer travel distances
+- 🛠️ Recommended hardware RC filters (1kΩ + 0.1µF) for EMI immunity
 
 ## Phase 4 Implementation Details (ODStepper Integration)
 
@@ -527,20 +530,32 @@ attachInterrupt(digitalPinToInterrupt(LEFT_LIMIT_PIN), leftLimitISR, FALLING);
 attachInterrupt(digitalPinToInterrupt(RIGHT_LIMIT_PIN), rightLimitISR, FALLING);
 ```
 
-## Files Status
+## Complete Command Reference
 
-### **Required Files for Current System:**
-- ✅ `skullstepperV4.ino` - Thread-safe main sketch with complete integration
-- ✅ `GlobalInfrastructure.cpp` - Thread-safe infrastructure (mutexes, queues, utilities)
-- ✅ `GlobalInterface.h` - Complete interface definitions
-- ✅ `HardwareConfig.h` - ESP32-S3 pin assignments and constants
-- ✅ `StepperController.cpp` - S-curve implementation (in progress)
-- ✅ `StepperController.h` - Motion control interface
-- ✅ `SerialInterface.cpp` - Complete command system (existing)
-- ✅ `SerialInterface.h` - Command interface (existing)
-- ✅ `SystemConfig.cpp` - Flash storage implementation (existing)
-- ✅ `SystemConfig.h` - Configuration interface (existing)
-- 📝 `README.md` - This design document (updated)
-- 📝 `SerialInterface_Manual.md` - Complete command reference (existing)
+### Motion Commands:
+- `MOVE <position>` - Move to absolute position
+- `HOME` - Run auto-range homing sequence
+- `STOP` - Stop with deceleration
+- `ESTOP` - Emergency stop (immediate)
+- `ENABLE` - Enable motor (default on startup)
+- `DISABLE` - Disable motor (allows manual movement)
+- `TEST` - Run automated range test (requires homing first)
 
-**System is ready for Phase 4 completion and testing of S-curve motion quality.**
+### Information Commands:
+- `STATUS` - Show current system status
+- `CONFIG` - Display complete configuration with metadata
+- `PARAMS` - List all configurable parameters with ranges
+- `HELP` - Show command help
+
+### Configuration Commands:
+- `CONFIG SET <param> <value>` - Set parameter value
+- `CONFIG RESET <param>` - Reset single parameter to default
+- `CONFIG RESET motion` - Reset all motion parameters
+- `CONFIG RESET dmx` - Reset all DMX parameters  
+- `CONFIG RESET` - Factory reset all settings
+
+### Interface Commands:
+- `ECHO ON/OFF` - Control command echo
+- `VERBOSE 0-3` - Set output verbosity
+- `JSON ON/OFF` - Switch to JSON output mode
+- `STREAM ON/OFF` - Enable/disable status streaming
