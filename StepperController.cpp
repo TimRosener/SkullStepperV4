@@ -61,13 +61,18 @@ static MotionProfile g_currentProfile = {
     .enableLimits = true
 };
 
-// Limit switch handling
+// Limit switch handling with noise filtering
 static volatile bool g_leftLimitTriggered = false;
 static volatile bool g_rightLimitTriggered = false;
 static bool g_leftLimitState = false;
 static bool g_rightLimitState = false;
 static uint32_t g_leftLimitDebounceTime = 0;
 static uint32_t g_rightLimitDebounceTime = 0;
+
+// Noise filtering counters
+static uint8_t g_leftLimitStableCount = 0;
+static uint8_t g_rightLimitStableCount = 0;
+static const uint8_t LIMIT_STABLE_READS = 3;  // Require 3 consecutive stable reads
 
 // Homing state machine
 enum class HomingState {
@@ -87,7 +92,7 @@ static int32_t g_detectedRightLimit = 0;
 static const int32_t HOMING_SPEED = 500;  // steps/sec for homing (increased from 100)
 static const int32_t BACKOFF_STEPS = 50;  // steps to back off from limits
 static const int32_t POSITION_MARGIN = 10; // safety margin from limits
-static const uint32_t HOMING_TIMEOUT_MS = 30000; // 30 second timeout for finding limits
+static const uint32_t HOMING_TIMEOUT_MS = 90000; // 90 second timeout for finding limits (3x longer for full travel)
 static uint32_t g_homingStartTime = 0;
 static uint32_t g_homingPhaseStartTime = 0;
 
@@ -112,61 +117,83 @@ void IRAM_ATTR rightLimitISR() {
 // ============================================================================
 
 /**
- * Handle limit switch flags with debouncing
+ * Handle limit switch flags with enhanced debouncing and noise filtering
  * Called from Core 0 task only
  */
 static void handleLimitFlags() {
     uint32_t currentTime = millis();
     
-    // Check left limit with debouncing
+    // Check left limit with enhanced noise filtering
     if (g_leftLimitTriggered) {
-        bool currentState = (digitalRead(LEFT_LIMIT_PIN) == LOW);
+        bool currentReading = (digitalRead(LEFT_LIMIT_PIN) == LOW);
         
-        if (currentState != g_leftLimitState) {
+        // Require multiple consecutive stable readings
+        if (currentReading != g_leftLimitState) {
             if (currentTime - g_leftLimitDebounceTime > LIMIT_SWITCH_DEBOUNCE) {
-                g_leftLimitState = currentState;
-                g_leftLimitDebounceTime = currentTime;
+                g_leftLimitStableCount++;
                 
-                if (g_leftLimitState) {
-                    Serial.println("StepperController: Left limit activated");
+                // Only change state after LIMIT_STABLE_READS consecutive readings
+                if (g_leftLimitStableCount >= LIMIT_STABLE_READS) {
+                    g_leftLimitState = currentReading;
+                    g_leftLimitStableCount = 0;
+                    g_leftLimitDebounceTime = currentTime;
                     
-                    // Handle based on current state
-                    if (g_homingState != HomingState::FINDING_LEFT) {
-                        // Emergency stop if not homing
-                        if (g_stepper && g_stepper->isRunning()) {
-                            g_stepper->forceStop();
-                            g_motionState = MotionState::IDLE;
-                            SAFE_WRITE_STATUS(safetyState, SafetyState::LEFT_LIMIT_ACTIVE);
+                    if (g_leftLimitState) {
+                        Serial.println("StepperController: Left limit activated (filtered)");
+                        
+                        // Handle based on current state
+                        if (g_homingState != HomingState::FINDING_LEFT) {
+                            // Emergency stop if not homing
+                            if (g_stepper && g_stepper->isRunning()) {
+                                g_stepper->forceStop();
+                                g_motionState = MotionState::IDLE;
+                                SAFE_WRITE_STATUS(safetyState, SafetyState::LEFT_LIMIT_ACTIVE);
+                            }
                         }
                     }
                 }
             }
+        } else {
+            // Reading matches current state, reset counter
+            g_leftLimitStableCount = 0;
+            g_leftLimitDebounceTime = currentTime;
         }
     }
     
-    // Check right limit with debouncing
+    // Check right limit with enhanced noise filtering
     if (g_rightLimitTriggered) {
-        bool currentState = (digitalRead(RIGHT_LIMIT_PIN) == LOW);
+        bool currentReading = (digitalRead(RIGHT_LIMIT_PIN) == LOW);
         
-        if (currentState != g_rightLimitState) {
+        // Require multiple consecutive stable readings
+        if (currentReading != g_rightLimitState) {
             if (currentTime - g_rightLimitDebounceTime > LIMIT_SWITCH_DEBOUNCE) {
-                g_rightLimitState = currentState;
-                g_rightLimitDebounceTime = currentTime;
+                g_rightLimitStableCount++;
                 
-                if (g_rightLimitState) {
-                    Serial.println("StepperController: Right limit activated");
+                // Only change state after LIMIT_STABLE_READS consecutive readings
+                if (g_rightLimitStableCount >= LIMIT_STABLE_READS) {
+                    g_rightLimitState = currentReading;
+                    g_rightLimitStableCount = 0;
+                    g_rightLimitDebounceTime = currentTime;
                     
-                    // Handle based on current state
-                    if (g_homingState != HomingState::FINDING_RIGHT) {
-                        // Emergency stop if not homing
-                        if (g_stepper && g_stepper->isRunning()) {
-                            g_stepper->forceStop();
-                            g_motionState = MotionState::IDLE;
-                            SAFE_WRITE_STATUS(safetyState, SafetyState::RIGHT_LIMIT_ACTIVE);
+                    if (g_rightLimitState) {
+                        Serial.println("StepperController: Right limit activated (filtered)");
+                        
+                        // Handle based on current state
+                        if (g_homingState != HomingState::FINDING_RIGHT) {
+                            // Emergency stop if not homing
+                            if (g_stepper && g_stepper->isRunning()) {
+                                g_stepper->forceStop();
+                                g_motionState = MotionState::IDLE;
+                                SAFE_WRITE_STATUS(safetyState, SafetyState::RIGHT_LIMIT_ACTIVE);
+                            }
                         }
                     }
                 }
             }
+        } else {
+            // Reading matches current state, reset counter
+            g_rightLimitStableCount = 0;
+            g_rightLimitDebounceTime = currentTime;
         }
     }
     
@@ -515,12 +542,16 @@ bool initialize() {
     g_stepper->setDirectionPin(STEPPER_DIR_PIN);
     // Set enable pin with HIGH = enabled (inverted from default)
     g_stepper->setEnablePin(STEPPER_ENABLE_PIN, false);  // false = HIGH enables stepper
-    g_stepper->setAutoEnable(true);
+    g_stepper->setAutoEnable(false);  // CHANGED: Keep motor enabled after moves for position holding
     
     // Set initial motion parameters
     g_stepper->setSpeedInHz(g_currentProfile.maxSpeed);
     g_stepper->setAcceleration(g_currentProfile.acceleration);
     g_stepper->setCurrentPosition(0);
+    
+    // Enable the stepper by default for position holding
+    g_stepper->enableOutputs();
+    g_stepperEnabled = true;
     
     // Attach limit switch interrupts (minimal ISRs)
     attachInterrupt(digitalPinToInterrupt(LEFT_LIMIT_PIN), leftLimitISR, CHANGE);

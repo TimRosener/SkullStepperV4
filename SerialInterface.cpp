@@ -37,6 +37,14 @@ namespace SerialInterface {
   // Response buffer for formatting
   static char g_responseBuffer[512];
   
+  // Range test state
+  static bool g_rangeTestActive = false;
+  static int32_t g_testPos1 = 0;
+  static int32_t g_testPos2 = 0;
+  static bool g_testMovingToPos2 = true;
+  static uint32_t g_testMoveCount = 0;
+  static uint32_t g_lastTestCheckTime = 0;
+  
   // ----------------------------------------------------------------------------
   // Private Helper Functions
   // ----------------------------------------------------------------------------
@@ -94,6 +102,51 @@ namespace SerialInterface {
     char* endPtr;
     value = strtof(str, &endPtr);
     return (*endPtr == '\0' || *endPtr == ' ' || *endPtr == '\t');
+  }
+  
+  // Start range test between two positions
+  bool startRangeTest(int32_t pos1, int32_t pos2) {
+    g_rangeTestActive = true;
+    g_testPos1 = pos1;
+    g_testPos2 = pos2;
+    g_testMovingToPos2 = true;
+    g_testMoveCount = 0;
+    g_lastTestCheckTime = millis();
+    
+    // Send first move command
+    MotionCommand cmd = createMotionCommand(CommandType::MOVE_ABSOLUTE, pos2);
+    return sendMotionCommand(cmd);
+  }
+  
+  // Update range test (called from update())
+  void updateRangeTest() {
+    if (!g_rangeTestActive) return;
+    
+    // Check motion state every 100ms
+    uint32_t currentTime = millis();
+    if (currentTime - g_lastTestCheckTime < 100) {
+      return;
+    }
+    g_lastTestCheckTime = currentTime;
+    
+    // Check if stepper is moving
+    if (!StepperController::isMoving()) {
+      // Movement completed, send next move
+      g_testMoveCount++;
+      
+      // Toggle direction
+      int32_t targetPos = g_testMovingToPos2 ? g_testPos1 : g_testPos2;
+      g_testMovingToPos2 = !g_testMovingToPos2;
+      
+      // Show progress every 10 moves
+      if (g_testMoveCount % 10 == 0) {
+        Serial.printf("INFO: Test cycle %lu completed\n", g_testMoveCount / 2);
+      }
+      
+      // Send next move
+      MotionCommand cmd = createMotionCommand(CommandType::MOVE_ABSOLUTE, targetPos);
+      sendMotionCommand(cmd);
+    }
   }
   
   // ----------------------------------------------------------------------------
@@ -245,6 +298,9 @@ namespace SerialInterface {
     // Process incoming commands
     processIncomingCommands();
     
+    // Update range test if active
+    updateRangeTest();
+    
     // Send periodic status updates only if streaming is enabled
     SystemConfig* config = SystemConfigMgr::getConfig();
     uint32_t currentTime = millis();
@@ -272,6 +328,23 @@ namespace SerialInterface {
   bool processIncomingCommands() {
     while (Serial.available()) {
       char c = Serial.read();
+      
+      // If range test is active, any input stops it
+      if (g_rangeTestActive) {
+        // Stop the test
+        g_rangeTestActive = false;
+        sendInfo("Range test stopped by user");
+        
+        // Stop motion
+        MotionCommand cmd = createMotionCommand(CommandType::STOP);
+        sendMotionCommand(cmd);
+        
+        // Clear the buffer and show prompt
+        g_bufferIndex = 0;
+        memset(g_commandBuffer, 0, sizeof(g_commandBuffer));
+        printPrompt();
+        continue;
+      }
       
       // Echo character if enabled
       if (g_echoMode && c != '\r' && c != '\n') {
@@ -473,6 +546,35 @@ namespace SerialInterface {
         Serial.println(g_statusStreaming ? "ON" : "OFF");
       }
       return true;
+    }
+    else if (mainCmd == "PARAMS") {
+      return sendParameterList();
+    }
+    else if (mainCmd == "TEST") {
+      // Check if system has been homed
+      if (!StepperController::isHomed()) {
+        sendError("System must be homed before running test. Use HOME command first.");
+        return false;
+      }
+      
+      // Get the position limits
+      int32_t minPos, maxPos;
+      if (!StepperController::getPositionLimits(minPos, maxPos)) {
+        sendError("Unable to get position limits");
+        return false;
+      }
+      
+      // Calculate 10% and 90% positions
+      int32_t range = maxPos - minPos;
+      int32_t pos10 = minPos + (range * 10 / 100);
+      int32_t pos90 = minPos + (range * 90 / 100);
+      
+      sendInfo("Starting range test...");
+      Serial.printf("INFO: Moving between positions %d (10%%) and %d (90%%)\n", pos10, pos90);
+      Serial.println("INFO: Press any key to stop test");
+      
+      // Start test sequence
+      return startRangeTest(pos10, pos90);
     }
     else {
       sendError("Unknown command. Type HELP for available commands");
@@ -1042,11 +1144,15 @@ namespace SerialInterface {
     Serial.println("  ESTOP               - Emergency stop");
     Serial.println("  ENABLE              - Enable stepper motor");
     Serial.println("  DISABLE             - Disable stepper motor");
+    Serial.println("  TEST                - Run range test (requires homing first)");
+    Serial.println("                        Moves between 10% and 90% of range");
+    Serial.println("                        Press any key to stop");
     Serial.println();
     Serial.println("Information Commands:");
     Serial.println("  STATUS              - Show system status");
     Serial.println("  CONFIG              - Show configuration");
     Serial.println("  CONFIG SET <param> <value> - Set configuration");
+    Serial.println("  PARAMS              - List all configurable parameters");
     Serial.println("  HELP                - Show this help");
     Serial.println();
     Serial.println("Interface Commands:");
@@ -1064,6 +1170,51 @@ namespace SerialInterface {
     Serial.println("Examples:");
     Serial.println("  MOVE 1000           - Move to position 1000");
     Serial.println("  CONFIG SET maxSpeed 2000 - Set max speed");
+    Serial.println("===============================\n");
+    
+    return true;
+  }
+  
+  bool sendParameterList() {
+    Serial.println("\n=== Configurable Parameters ===");
+    Serial.println("\nMotion Parameters:");
+    Serial.println("  maxSpeed            Range: 0-10000 steps/sec    Default: 1000");
+    Serial.println("                      Current max velocity for movements");
+    Serial.println("  acceleration        Range: 0-20000 steps/sec²   Default: 500");
+    Serial.println("                      Acceleration/deceleration rate");
+    Serial.println("  deceleration        Range: 0-20000 steps/sec²   Default: 500");
+    Serial.println("                      (Currently uses same value as acceleration)");
+    Serial.println("  jerk                Range: 0-50000 steps/sec³   Default: 1000");
+    Serial.println("                      Jerk limitation (future use)");
+    
+    Serial.println("\nDMX Parameters:");
+    Serial.println("  dmxStartChannel     Range: 1-512                Default: 1");
+    Serial.println("                      DMX channel to monitor for position control");
+    Serial.println("  dmxScale            Range: Any non-zero value   Default: 1.0");
+    Serial.println("                      Scaling factor (steps per DMX unit)");
+    Serial.println("                      Negative values reverse direction");
+    Serial.println("  dmxOffset           Range: Any integer          Default: 0");
+    Serial.println("                      Position offset in steps");
+    Serial.println("                      Final position = (DMX × scale) + offset");
+    
+    Serial.println("\nSystem Parameters:");
+    Serial.println("  verbosity           Range: 0-3                  Default: 2");
+    Serial.println("                      0=minimal, 1=normal, 2=verbose, 3=debug");
+    
+    Serial.println("\nUsage Examples:");
+    Serial.println("  CONFIG SET maxSpeed 2000        # Set max speed to 2000 steps/sec");
+    Serial.println("  CONFIG SET acceleration 1500    # Set acceleration to 1500 steps/sec²");
+    Serial.println("  CONFIG SET dmxStartChannel 10   # Monitor DMX channel 10");
+    Serial.println("  CONFIG SET dmxScale 5.0         # 5 steps per DMX unit");
+    Serial.println("  CONFIG SET dmxOffset 1000       # Add 1000 steps offset");
+    
+    Serial.println("\nReset Commands:");
+    Serial.println("  CONFIG RESET <parameter>        # Reset single parameter");
+    Serial.println("  CONFIG RESET motion             # Reset all motion parameters");
+    Serial.println("  CONFIG RESET dmx                # Reset all DMX parameters");
+    Serial.println("  CONFIG RESET                    # Factory reset all parameters");
+    
+    Serial.println("\nNote: Position limits are set automatically during homing.");
     Serial.println("===============================\n");
     
     return true;

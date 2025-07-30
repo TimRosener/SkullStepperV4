@@ -120,6 +120,12 @@ namespace SerialInterface {
    */
   bool sendHelp();
   
+  /**
+   * Send list of all configurable parameters with ranges
+   * @return true if parameter list sent
+   */
+  bool sendParameterList();
+  
   // ----------------------------------------------------------------------------
   // Motion Command Functions
   // ----------------------------------------------------------------------------

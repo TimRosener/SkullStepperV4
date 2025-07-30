@@ -297,6 +297,23 @@ namespace StepperController {
   bool isEnabled();
   float getStepFrequency();
   bool getTimingDiagnostics(uint32_t& stepInterval, float& dutyCycle);
+  
+  // Homing and limit functions
+  bool startHoming();
+  bool isHoming();
+  uint8_t getHomingProgress();
+  bool isHomed();
+  bool getPositionLimits(int32_t& minPos, int32_t& maxPos);
+  void getLimitStates(bool& leftLimit, bool& rightLimit);
+  
+  // Advanced motion functions
+  bool moveTo(int32_t position);
+  bool move(int32_t steps);
+  bool stop();
+  bool setMaxSpeed(float speed);
+  bool setAcceleration(float accel);
+  int32_t distanceToGo();
+  bool isAlarmActive();
 }
 
 // DMXReceiver Interface

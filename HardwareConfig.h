@@ -21,7 +21,7 @@
 #define STEPPER_STEP_PIN        7    // GPIO 7 → CL57Y PP+ (Open-drain + 1.8kΩ to +5V)
 #define STEPPER_DIR_PIN         15   // GPIO 15 → CL57Y DIR+ (Open-drain + 1.8kΩ to +5V)
 #define STEPPER_ENABLE_PIN      16   // GPIO 16 → CL57Y MF+ (Open-drain + 1.8kΩ to +5V)
-#define STEPPER_ALARM_PIN       17    // GPIO 8 ← CL57Y ALARM+ (Input with pull-up)
+#define STEPPER_ALARM_PIN       8    // GPIO 8 ← CL57Y ALARM+ (Input with pull-up) ✓ CONFIRMED
 
 // ----------------------------------------------------------------------------
 // DMX Interface (MAX485) Pins
@@ -33,8 +33,26 @@
 // ----------------------------------------------------------------------------
 // Limit Switch Pins
 // ----------------------------------------------------------------------------
-#define LEFT_LIMIT_PIN          18   // GPIO 17 (Active low with pull-up)
-#define RIGHT_LIMIT_PIN         8   // GPIO 18 (Active low with pull-up)
+#define LEFT_LIMIT_PIN          17   // GPIO 17 (Active low with pull-up) ✓ CONFIRMED
+#define RIGHT_LIMIT_PIN         18   // GPIO 18 (Active low with pull-up) ✓ CONFIRMED
+
+// ----------------------------------------------------------------------------
+// Limit Switch Noise Filtering Recommendations
+// ----------------------------------------------------------------------------
+// To prevent false triggers from stepper motor EMI, add RC filters:
+// 
+// Limit Switch ----+----[1kΩ]----+---- GPIO Pin
+//                  |              |
+//                 GND          [0.1µF]
+//                                |
+//                               GND
+//
+// Additional recommendations:
+// - Use shielded cable for limit switches (shield to GND at ESP32 end only)
+// - Keep limit switch wires away from motor/power cables
+// - Use twisted pair wiring if shielded cable unavailable
+// - Consider ferrite beads on cables near ESP32
+// ----------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
 // Hardware Constants
@@ -60,7 +78,7 @@
 #define STEP_PULSE_DUTY_CYCLE   0.25 // 25% duty cycle for step pulses
 #define MIN_STEP_PERIOD         100  // Minimum step period (10kHz max frequency)
 #define MAX_STEP_FREQUENCY      10000 // Maximum step frequency (Hz)
-#define LIMIT_SWITCH_DEBOUNCE   50   // Limit switch debounce time (ms)
+#define LIMIT_SWITCH_DEBOUNCE   100  // Limit switch debounce time (ms) - Increased for noise immunity
 
 // Calculate pulse timing from frequency for RMT
 #define RMT_PERIOD_FROM_FREQ(freq)      (1000000.0f / (freq))              // Period in microseconds
@@ -73,8 +91,8 @@
 // Motion Limits
 #define MAX_POSITION_STEPS      (TOTAL_STEPS_PER_REV * 2)  // 2 full revolutions max
 #define MIN_POSITION_STEPS      0
-#define DEFAULT_MAX_SPEED       1000 // Steps per second
-#define DEFAULT_ACCELERATION    500  // Steps per second²
+#define DEFAULT_MAX_SPEED       5000 // Steps per second
+#define DEFAULT_ACCELERATION    5000  // Steps per second²
 
 // Safety Constants
 #define EMERGENCY_STOP_DECEL    2000 // Emergency deceleration (steps/sec²)
