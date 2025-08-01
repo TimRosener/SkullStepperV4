@@ -1,6 +1,244 @@
 # SkullStepperV4 - ESP32-S3 Closed-Loop Stepper Control System
 
-## Project Overview
+## System Architecture Overview
+
+### Core Design Principles
+
+1. **Complete Module Isolation**: Modules NEVER directly call functions from other modules
+2. **Thread-Safe Communication**: All inter-module communication through FreeRTOS queues and protected data structures
+3. **Dual-Core Architecture**: ESP32-S3's two cores are used for specific responsibilities
+4. **Memory Safety**: No shared pointers, only value copying through protected interfaces
+
+### Core Assignment and Responsibilities
+
+#### Core 0 - Real-Time Operations
+- **Priority**: Time-critical operations with minimal latency
+- **Modules**:
+  - StepperController (motion control)
+  - SafetyMonitor (future - limit switches, alarms)
+  - DMXReceiver (future - DMX packet processing)
+- **Characteristics**: 
+  - Minimal serial output to avoid timing disruption
+  - Hardware interrupt handling
+  - Direct hardware control
+
+#### Core 1 - Communication and Configuration
+- **Priority**: User interaction and system management
+- **Modules**:
+  - SerialInterface (command processing)
+  - SystemConfig (parameter management)
+  - Main Arduino loop
+- **Characteristics**:
+  - Heavy serial I/O
+  - JSON processing
+  - Flash storage operations
+
+### Module Architecture
+
+#### 1. GlobalInfrastructure (Foundation Layer)
+**Role**: Provides thread-safe infrastructure for all other modules
+
+**Responsibilities**:
+- Initialize and manage FreeRTOS synchronization objects (mutexes, queues)
+- Provide thread-safe access to global data structures
+- Ensure memory safety across cores
+
+**Key Components**:
+```cpp
+// Thread-safe data structures
+SystemStatus g_systemStatus;  // Protected by g_statusMutex
+SystemConfig g_systemConfig;  // Protected by g_configMutex
+
+// Inter-module communication queues
+QueueHandle_t g_motionCommandQueue;  // SerialInterface → StepperController
+QueueHandle_t g_statusUpdateQueue;   // All modules → Monitoring
+QueueHandle_t g_dmxDataQueue;       // DMXReceiver → StepperController
+```
+
+**Communication**: None - this is the foundation layer
+
+#### 2. SystemConfig (Core 1)
+**Role**: Persistent configuration management
+
+**Responsibilities**:
+- Store/retrieve configuration from ESP32 flash (Preferences library)
+- Validate parameter ranges
+- Provide atomic configuration updates
+- Handle factory resets
+
+**Communication**:
+- **Receives**: Configuration commands via direct function calls from SerialInterface
+- **Provides**: Configuration data via getConfig() - returns pointer to protected structure
+- **Protection**: All access through g_configMutex
+
+#### 3. SerialInterface (Core 1)
+**Role**: Human and machine interface layer
+
+**Responsibilities**:
+- Parse human-readable commands and JSON API
+- Format responses (human-readable or JSON)
+- Queue motion commands for StepperController
+- Manage interactive features (echo, verbosity, streaming)
+
+**Communication**:
+- **Sends**: Motion commands via g_motionCommandQueue
+- **Reads**: System status via thread-safe macros
+- **Calls**: SystemConfig functions for configuration changes
+
+**Key Design**:
+```cpp
+// Motion command queuing
+MotionCommand cmd = createMotionCommand(CommandType::MOVE_ABSOLUTE, position);
+xQueueSend(g_motionCommandQueue, &cmd, timeout);
+```
+
+#### 4. StepperController (Core 0)
+**Role**: Real-time motion control
+
+**Responsibilities**:
+- Process motion commands from queue
+- Generate step pulses via ODStepper/FastAccelStepper
+- Monitor limit switches with debouncing
+- Execute homing sequences
+- Enforce position limits and safety
+
+**Communication**:
+- **Receives**: Motion commands via g_motionCommandQueue
+- **Updates**: System status via thread-safe macros
+- **Signals**: Safety states through g_systemStatus
+
+**Task Structure**:
+```cpp
+void stepperControllerTask(void* parameter) {
+    // Runs every 2ms on Core 0
+    while (true) {
+        checkLimitSwitches();        // GPIO monitoring
+        processMotionCommands();     // Queue processing
+        updateHomingSequence();      // State machine
+        updateMotionStatus();        // Status updates
+        vTaskDelayUntil(...);        // Precise timing
+    }
+}
+```
+
+#### 5. SafetyMonitor (Core 0 - Future)
+**Role**: Centralized safety monitoring
+
+**Planned Responsibilities**:
+- Monitor all safety-critical inputs
+- Trigger emergency stops
+- Manage fault conditions
+- Coordinate safety responses
+
+#### 6. DMXReceiver (Core 0 - Future)
+**Role**: DMX512 protocol handler
+
+**Planned Responsibilities**:
+- Receive DMX packets via UART2
+- Validate packet integrity
+- Extract channel data
+- Queue position updates
+
+### Inter-Process Communication
+
+#### 1. Motion Command Queue
+**Purpose**: Send motion commands from Core 1 to Core 0
+```cpp
+// Structure
+typedef struct {
+    CommandType type;        // MOVE_ABSOLUTE, HOME, STOP, etc.
+    MotionProfile profile;   // Speed, acceleration, target
+    uint32_t timestamp;
+    uint16_t commandId;
+} MotionCommand;
+
+// Usage
+SerialInterface (Core 1) → g_motionCommandQueue → StepperController (Core 0)
+```
+
+#### 2. Thread-Safe Status Access
+**Purpose**: Safe status reading/writing across cores
+```cpp
+// Write (any module)
+SAFE_WRITE_STATUS(currentPosition, 1000);
+// Expands to:
+// xSemaphoreTake(g_statusMutex, timeout);
+// g_systemStatus.currentPosition = 1000;
+// xSemaphoreGive(g_statusMutex);
+
+// Read (any module)
+int32_t pos;
+SAFE_READ_STATUS(currentPosition, pos);
+```
+
+#### 3. Configuration Access
+**Purpose**: Thread-safe configuration management
+```cpp
+// Get config pointer (read-only access)
+SystemConfig* config = SystemConfigMgr::getConfig();
+
+// Update configuration
+SystemConfigMgr::setMotionProfile(profile);
+SystemConfigMgr::commitChanges();  // Saves to flash
+```
+
+### Communication Rules
+
+1. **No Direct Module Calls**: Modules never include headers or call functions from other modules (except GlobalInterface.h)
+
+2. **Queue-Based Commands**: All commands flow through FreeRTOS queues
+   - Non-blocking sends (timeout = 0)
+   - Prevents deadlocks
+   - Allows command rejection when full
+
+3. **Protected Shared Data**: All shared data access through mutexes
+   - Short critical sections
+   - Consistent timeout handling
+   - No mutex holding across function calls
+
+4. **Value Semantics**: Data is copied, never shared by reference
+   - Prevents race conditions
+   - Ensures data consistency
+   - Allows independent module updates
+
+### Adding New Functionality
+
+When adding new modules or features:
+
+1. **Determine Core Assignment**:
+   - Real-time/hardware control → Core 0
+   - User interface/configuration → Core 1
+
+2. **Define Communication**:
+   - Create new queue if needed
+   - Add to GlobalInfrastructure
+   - Define message structures
+
+3. **Respect Module Boundaries**:
+   - Only include GlobalInterface.h
+   - Never call other modules directly
+   - Use queues for commands
+   - Use protected status for state
+
+4. **Maintain Thread Safety**:
+   - Always use provided macros
+   - Keep critical sections short
+   - Test with concurrent operations
+
+### Example: Adding a New Feature
+
+To add LED status indicators:
+
+1. **Create LED Controller Module** (Core 0 or 1 depending on timing needs)
+2. **Add Status Fields** to SystemStatus for LED states
+3. **Create Command Queue** if LED patterns need commands
+4. **Update GlobalInfrastructure** with new queue initialization
+5. **Have modules update LED status** via SAFE_WRITE_STATUS
+6. **LED Controller reads status** and updates physical LEDs
+
+This architecture ensures scalability while maintaining thread safety and module independence.
+
+## System Overview
 
 This is a comprehensive modular stepper motor control system with DMX input and extensive configurability, designed for the ESP32-S3 microcontroller with **CL57Y closed-loop stepper driver**.
 
@@ -326,6 +564,17 @@ Position Tracking          ALARM Signal
 2. **No Automatic Recovery** - System doesn't auto-recover from limit activation
 3. **No Position Persistence** - Position lost on power cycle (could save to flash)
 
+### Troubleshooting Guide:
+1. **Motion Jerks During Acceleration/Deceleration**
+   - Check mechanical couplers - loose couplers can cause erratic motion
+   - FastAccelStepper may show irregular step intervals when mechanical slippage occurs
+   - Use DIAG ON command to see step timing if motion appears jerky
+
+2. **Limit Switches Not Detecting**
+   - Add hardware RC filters (1kΩ + 0.1µF) for noise immunity
+   - Check wiring - switches should be normally open, active low
+   - Verify pull-up resistors are enabled (internal or external)
+
 ### Production Considerations:
 1. **Mechanical Calibration** - Adjust STEPPER_STEPS_PER_REV in HardwareConfig.h
 2. **Travel Limits** - Ensure homing timeout is sufficient for full travel
@@ -342,6 +591,47 @@ Position Tracking          ALARM Signal
 📝 **Phase 6**: DMXReceiver module - PLANNED
 
 **Current State: System has complete motion control with auto-range homing, limit switch protection, noise filtering, and comprehensive command interface. Ready for production testing!**
+
+**Recent Development (2025-01-31):**
+
+**Major Accomplishments:**
+- ✅ **Fixed Intermittent Limit Switch Detection**
+  - Implemented continuous monitoring with redundant detection (interrupt + polling)
+  - Added enhanced debounce logic with 3-sample validation
+  - Flags now cleared only after state confirmation
+  - Optimized for minimal CPU impact (only 0.2% overhead)
+  - Clear status messages for both activation and release events
+
+- ✅ **Improved Motion Control**
+  - Reduced homing speed by 50% (now 375 steps/sec) for safer operation
+  - Fixed CONFIG SET commands not applying to StepperController
+  - Motion parameters now update immediately when changed
+  - Resolved acceleration/deceleration jerk issue (mechanical - loose coupler)
+
+- ✅ **Enhanced Safety Features**
+  - Implemented proper limit fault latching system
+  - Motion commands rejected when limit fault is active
+  - Requires homing sequence to clear faults (industrial standard)
+  - Fixed TEST command to stop cleanly on limit fault
+  - Prevents command queue flooding during fault conditions
+
+- ✅ **Added Diagnostic Capabilities**
+  - Implemented step timing diagnostics (DIAG ON/OFF command)
+  - Captured step intervals to identify mechanical issues
+  - Successfully diagnosed loose coupler causing motion jerks
+  - Removed diagnostic overhead after troubleshooting
+
+- ✅ **New Test Routines**
+  - TEST2/RANDOMTEST command - moves to 10 random positions
+  - Helps verify smooth motion across full range
+  - Both tests interruptible with any keypress
+  - Shows test progress and completion status
+
+**Key Lessons Learned:**
+- Mechanical issues (loose coupler) can manifest as software timing problems
+- Step interval diagnostics are valuable for troubleshooting
+- Continuous limit monitoring at 2ms provides good balance of safety and performance
+- Proper fault latching prevents dangerous repeated limit hits
 
 **Recent Development (2025-01-30):**
 - ✅ Successfully integrated ODStepper/FastAccelStepper for smooth motion control
@@ -540,6 +830,7 @@ attachInterrupt(digitalPinToInterrupt(RIGHT_LIMIT_PIN), rightLimitISR, FALLING);
 - `ENABLE` - Enable motor (default on startup)
 - `DISABLE` - Disable motor (allows manual movement)
 - `TEST` - Run automated range test (requires homing first)
+- `TEST2` or `RANDOMTEST` - Run random position test (10 positions)
 
 ### Information Commands:
 - `STATUS` - Show current system status

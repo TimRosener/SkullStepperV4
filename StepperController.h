@@ -213,6 +213,19 @@ namespace StepperController {
      */
     bool isAlarmActive();
     
+    /**
+     * Enable or disable step timing diagnostics
+     * @param enable true to enable diagnostics
+     * @return true if successful
+     */
+    bool enableStepDiagnostics(bool enable);
+    
+    /**
+     * Check if a limit fault is active
+     * @return true if limit fault requires homing to clear
+     */
+    bool isLimitFaultActive();
+    
 } // namespace StepperController
 
 #endif // STEPPERCONTROLLER_H

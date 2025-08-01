@@ -11,7 +11,9 @@
 
 #include "SerialInterface.h"
 #include "SystemConfig.h"
+#include "StepperController.h"
 #include <ArduinoJson.h>
+#include <esp_random.h>
 
 // ============================================================================
 // SerialInterface Module - Phase 3 Full Implementation
@@ -44,6 +46,12 @@ namespace SerialInterface {
   static bool g_testMovingToPos2 = true;
   static uint32_t g_testMoveCount = 0;
   static uint32_t g_lastTestCheckTime = 0;
+  
+  // Random test state
+  static bool g_randomTestActive = false;
+  static int32_t g_randomPositions[10];
+  static uint8_t g_randomTestIndex = 0;
+  static uint32_t g_randomTestMoveCount = 0;
   
   // ----------------------------------------------------------------------------
   // Private Helper Functions
@@ -118,9 +126,37 @@ namespace SerialInterface {
     return sendMotionCommand(cmd);
   }
   
+  // Start random position test
+  bool startRandomTest(int32_t minPos, int32_t maxPos) {
+    g_randomTestActive = true;
+    g_randomTestIndex = 0;
+    g_randomTestMoveCount = 0;
+    g_lastTestCheckTime = millis();
+    
+    // Generate 10 random positions within the range
+    int32_t range = maxPos - minPos;
+    Serial.println("INFO: Generated random test positions:");
+    for (int i = 0; i < 10; i++) {
+      // Use ESP32 hardware random number generator
+      g_randomPositions[i] = minPos + (esp_random() % range);
+      Serial.printf("  Position %d: %d steps\n", i + 1, g_randomPositions[i]);
+    }
+    
+    // Send first move command
+    MotionCommand cmd = createMotionCommand(CommandType::MOVE_ABSOLUTE, g_randomPositions[0]);
+    return sendMotionCommand(cmd);
+  }
+  
   // Update range test (called from update())
   void updateRangeTest() {
     if (!g_rangeTestActive) return;
+    
+    // Check if limit fault is active - stop test if so
+    if (StepperController::isLimitFaultActive()) {
+      g_rangeTestActive = false;
+      sendError("Range test aborted - limit fault detected. Homing required.");
+      return;
+    }
     
     // Check motion state every 100ms
     uint32_t currentTime = millis();
@@ -142,6 +178,51 @@ namespace SerialInterface {
       if (g_testMoveCount % 10 == 0) {
         Serial.printf("INFO: Test cycle %lu completed\n", g_testMoveCount / 2);
       }
+      
+      // Send next move
+      MotionCommand cmd = createMotionCommand(CommandType::MOVE_ABSOLUTE, targetPos);
+      sendMotionCommand(cmd);
+    }
+  }
+  
+  // Update random test (called from update())
+  void updateRandomTest() {
+    if (!g_randomTestActive) return;
+    
+    // Check if limit fault is active - stop test if so
+    if (StepperController::isLimitFaultActive()) {
+      g_randomTestActive = false;
+      sendError("Random test aborted - limit fault detected. Homing required.");
+      return;
+    }
+    
+    // Check motion state every 100ms
+    uint32_t currentTime = millis();
+    if (currentTime - g_lastTestCheckTime < 100) {
+      return;
+    }
+    g_lastTestCheckTime = currentTime;
+    
+    // Check if stepper is moving
+    if (!StepperController::isMoving()) {
+      // Movement completed
+      g_randomTestMoveCount++;
+      
+      // Check if we've completed all 10 positions
+      if (g_randomTestIndex >= 9) {
+        // Test complete
+        g_randomTestActive = false;
+        Serial.printf("INFO: Random test complete - visited %d positions\n", g_randomTestMoveCount);
+        Serial.println("INFO: Test finished successfully");
+        return;
+      }
+      
+      // Move to next position
+      g_randomTestIndex++;
+      int32_t targetPos = g_randomPositions[g_randomTestIndex];
+      
+      Serial.printf("INFO: Moving to position %d of 10: %d steps\n", 
+                    g_randomTestIndex + 1, targetPos);
       
       // Send next move
       MotionCommand cmd = createMotionCommand(CommandType::MOVE_ABSOLUTE, targetPos);
@@ -301,6 +382,9 @@ namespace SerialInterface {
     // Update range test if active
     updateRangeTest();
     
+    // Update random test if active
+    updateRandomTest();
+    
     // Send periodic status updates only if streaming is enabled
     SystemConfig* config = SystemConfigMgr::getConfig();
     uint32_t currentTime = millis();
@@ -334,6 +418,23 @@ namespace SerialInterface {
         // Stop the test
         g_rangeTestActive = false;
         sendInfo("Range test stopped by user");
+        
+        // Stop motion
+        MotionCommand cmd = createMotionCommand(CommandType::STOP);
+        sendMotionCommand(cmd);
+        
+        // Clear the buffer and show prompt
+        g_bufferIndex = 0;
+        memset(g_commandBuffer, 0, sizeof(g_commandBuffer));
+        printPrompt();
+        continue;
+      }
+      
+      // If random test is active, any input stops it
+      if (g_randomTestActive) {
+        // Stop the test
+        g_randomTestActive = false;
+        sendInfo("Random test stopped by user");
         
         // Stop motion
         MotionCommand cmd = createMotionCommand(CommandType::STOP);
@@ -550,6 +651,19 @@ namespace SerialInterface {
     else if (mainCmd == "PARAMS") {
       return sendParameterList();
     }
+    else if (mainCmd == "DIAG") {
+      if (params == "ON" || params == "1") {
+        StepperController::enableStepDiagnostics(true);
+        sendOK();
+      } else if (params == "OFF" || params == "0") {
+        StepperController::enableStepDiagnostics(false);
+        sendOK();
+      } else {
+        sendError("DIAG requires ON or OFF parameter");
+        return false;
+      }
+      return true;
+    }
     else if (mainCmd == "TEST") {
       // Check if system has been homed
       if (!StepperController::isHomed()) {
@@ -575,6 +689,32 @@ namespace SerialInterface {
       
       // Start test sequence
       return startRangeTest(pos10, pos90);
+    }
+    else if (mainCmd == "TEST2" || mainCmd == "RANDOMTEST") {
+      // Check if system has been homed
+      if (!StepperController::isHomed()) {
+        sendError("System must be homed before running test. Use HOME command first.");
+        return false;
+      }
+      
+      // Get the position limits
+      int32_t minPos, maxPos;
+      if (!StepperController::getPositionLimits(minPos, maxPos)) {
+        sendError("Unable to get position limits");
+        return false;
+      }
+      
+      // Use 10% to 90% of range for safety
+      int32_t range = maxPos - minPos;
+      int32_t safeMin = minPos + (range * 10 / 100);
+      int32_t safeMax = minPos + (range * 90 / 100);
+      
+      sendInfo("Starting random position test...");
+      Serial.printf("INFO: Will move to 10 random positions between %d and %d\n", safeMin, safeMax);
+      Serial.println("INFO: Press any key to stop test");
+      
+      // Start random test sequence
+      return startRandomTest(safeMin, safeMax);
     }
     else {
       sendError("Unknown command. Type HELP for available commands");
@@ -701,6 +841,14 @@ namespace SerialInterface {
       if (SystemConfigMgr::setMotionProfile(profile)) {
         if (SystemConfigMgr::commitChanges()) {
           sendInfo("Max speed updated successfully");
+          
+          // Send SET_SPEED command to update StepperController's internal profile
+          MotionCommand cmd = createMotionCommand(CommandType::SET_SPEED);
+          cmd.profile.maxSpeed = speed;
+          if (!sendMotionCommand(cmd)) {
+            sendDebug("Warning: Failed to update stepper controller speed");
+          }
+          
           sendOK();
           return true;
         } else {
@@ -724,6 +872,14 @@ namespace SerialInterface {
       if (SystemConfigMgr::setMotionProfile(profile)) {
         if (SystemConfigMgr::commitChanges()) {
           sendInfo("Acceleration updated successfully");
+          
+          // Send SET_ACCELERATION command to update StepperController's internal profile
+          MotionCommand cmd = createMotionCommand(CommandType::SET_ACCELERATION);
+          cmd.profile.acceleration = accel;
+          if (!sendMotionCommand(cmd)) {
+            sendDebug("Warning: Failed to update stepper controller acceleration");
+          }
+          
           sendOK();
           return true;
         } else {
@@ -848,6 +1004,18 @@ namespace SerialInterface {
         Serial.println("{\"status\":\"error\",\"message\":\"Invalid motion profile parameters\"}");
         return false;
       }
+      
+      // Send commands to update StepperController's internal profile
+      if (setObj.containsKey("maxSpeed")) {
+        MotionCommand cmd = createMotionCommand(CommandType::SET_SPEED);
+        cmd.profile.maxSpeed = profile.maxSpeed;
+        sendMotionCommand(cmd);
+      }
+      if (setObj.containsKey("acceleration")) {
+        MotionCommand cmd = createMotionCommand(CommandType::SET_ACCELERATION);
+        cmd.profile.acceleration = profile.acceleration;
+        sendMotionCommand(cmd);
+      }
     }
     
     // Process other configuration changes
@@ -940,6 +1108,11 @@ namespace SerialInterface {
     Serial.printf("Position: %d steps (target: %d)\n", currentPos, targetPos);
     Serial.printf("Speed: %.1f steps/sec\n", currentSpeed);
     Serial.printf("Stepper: %s\n", stepperEnabled ? "ENABLED" : "DISABLED");
+    
+    // Show limit fault status
+    if (StepperController::isLimitFaultActive()) {
+        Serial.println("*** LIMIT FAULT ACTIVE - HOMING REQUIRED ***");
+    }
     
     // Configuration summary
     SystemConfig* config = SystemConfigMgr::getConfig();
@@ -1147,6 +1320,10 @@ namespace SerialInterface {
     Serial.println("  TEST                - Run range test (requires homing first)");
     Serial.println("                        Moves between 10% and 90% of range");
     Serial.println("                        Press any key to stop");
+    Serial.println("  TEST2 / RANDOMTEST  - Run random position test");
+    Serial.println("                        Moves to 10 random positions");
+    Serial.println("                        Press any key to stop");
+    Serial.println("  DIAG ON/OFF         - Enable/disable step timing diagnostics");
     Serial.println();
     Serial.println("Information Commands:");
     Serial.println("  STATUS              - Show system status");
@@ -1158,6 +1335,8 @@ namespace SerialInterface {
     Serial.println("Interface Commands:");
     Serial.println("  ECHO ON/OFF         - Enable/disable command echo");
     Serial.println("  VERBOSE <0-3>       - Set verbosity level");
+  Serial.println("  JSON ON/OFF         - Switch output mode");
+  Serial.println("  STREAM ON/OFF       - Auto status updates");
     Serial.println();
     Serial.println("JSON Commands:");
     Serial.println("  {\"command\":\"move\",\"position\":1000}");
@@ -1230,6 +1409,15 @@ namespace SerialInterface {
       return false;
     }
     
+    // Check for limit fault before queuing motion commands
+    if (StepperController::isLimitFaultActive() && 
+        (cmd.type == CommandType::MOVE_ABSOLUTE || 
+         cmd.type == CommandType::MOVE_RELATIVE)) {
+      // Don't spam the queue with commands that will be rejected
+      // The StepperController will log the rejection once
+      return false;
+    }
+    
     // Try to send command to queue (non-blocking)
     if (xQueueSend(g_motionCommandQueue, &cmd, 0) == pdTRUE) {
       sendInfo("Motion command queued");
@@ -1260,6 +1448,12 @@ namespace SerialInterface {
     // Override speed if specified
     if (speed > 0) {
       cmd.profile.maxSpeed = speed;
+    }
+    
+    // For SET_SPEED and SET_ACCELERATION commands, ensure the profile is included
+    // This ensures config changes are applied to the stepper controller
+    if (type == CommandType::SET_SPEED || type == CommandType::SET_ACCELERATION) {
+      // Profile already contains the updated values from SystemConfig
     }
     
     return cmd;

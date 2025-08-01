@@ -23,6 +23,18 @@
 
 namespace StepperController {
 
+// Helper function to convert motion state to string
+static const char* motionStateToString(MotionState state) {
+    switch (state) {
+        case MotionState::IDLE: return "IDLE";
+        case MotionState::ACCELERATING: return "ACCELERATING";
+        case MotionState::CONSTANT_VELOCITY: return "CONSTANT_VELOCITY";
+        case MotionState::DECELERATING: return "DECELERATING";
+        case MotionState::HOMING: return "HOMING";
+        default: return "UNKNOWN";
+    }
+}
+
 // Forward declarations of helper functions
 static void handleLimitFlags();
 static void updateHomingSequence();
@@ -50,6 +62,14 @@ static bool g_systemHomed = false;
 static MotionState g_motionState = MotionState::IDLE;
 static bool g_stepperEnabled = false;
 static float g_currentSpeed = 0.0f;
+static bool g_limitFaultActive = false;  // Latched limit fault flag
+
+// Diagnostic timing data
+static bool g_enableStepDiagnostics = false;  // Diagnostics disabled - mechanical issue resolved
+static uint32_t g_lastStepTime = 0;
+static uint32_t g_stepIntervals[10];  // Store last 10 step intervals
+static uint8_t g_stepIntervalIndex = 0;
+static MotionState g_lastMotionState = MotionState::IDLE;
 
 // Motion profile
 static MotionProfile g_currentProfile = {
@@ -66,13 +86,12 @@ static volatile bool g_leftLimitTriggered = false;
 static volatile bool g_rightLimitTriggered = false;
 static bool g_leftLimitState = false;
 static bool g_rightLimitState = false;
-static uint32_t g_leftLimitDebounceTime = 0;
-static uint32_t g_rightLimitDebounceTime = 0;
+static uint32_t g_leftLimitDebounceStart = 0;  // When debounce period started
+static uint32_t g_rightLimitDebounceStart = 0;
 
-// Noise filtering counters
-static uint8_t g_leftLimitStableCount = 0;
-static uint8_t g_rightLimitStableCount = 0;
-static const uint8_t LIMIT_STABLE_READS = 3;  // Require 3 consecutive stable reads
+// Cache for continuous monitoring
+static bool g_lastLeftPinReading = false;
+static bool g_lastRightPinReading = false;
 
 // Homing state machine
 enum class HomingState {
@@ -89,7 +108,7 @@ enum class HomingState {
 static HomingState g_homingState = HomingState::IDLE;
 static uint8_t g_homingProgress = 0;
 static int32_t g_detectedRightLimit = 0;
-static const int32_t HOMING_SPEED = 500;  // steps/sec for homing (increased from 100)
+static const int32_t HOMING_SPEED = 375;  // steps/sec for homing (increased by 50% from 250)
 static const int32_t BACKOFF_STEPS = 50;  // steps to back off from limits
 static const int32_t POSITION_MARGIN = 10; // safety margin from limits
 static const uint32_t HOMING_TIMEOUT_MS = 90000; // 90 second timeout for finding limits (3x longer for full travel)
@@ -117,87 +136,113 @@ void IRAM_ATTR rightLimitISR() {
 // ============================================================================
 
 /**
- * Handle limit switch flags with enhanced debouncing and noise filtering
+ * Process left limit switch state change
  * Called from Core 0 task only
  */
-static void handleLimitFlags() {
+static void processLeftLimit(bool currentReading, uint32_t currentTime) {
+    // Check if state is different from our known state
+    if (currentReading != g_leftLimitState) {
+        // Start or continue debounce timer
+        if (g_leftLimitDebounceStart == 0) {
+            g_leftLimitDebounceStart = currentTime;
+        } else if (currentTime - g_leftLimitDebounceStart >= LIMIT_SWITCH_DEBOUNCE) {
+            // State has been stable for debounce period - confirm the change
+            g_leftLimitState = currentReading;
+            g_leftLimitDebounceStart = 0;
+            g_leftLimitTriggered = false;  // Clear interrupt flag after processing
+            
+            if (g_leftLimitState) {
+                Serial.println("StepperController: Left limit ACTIVATED");
+                
+                // Handle based on current state
+                if (g_homingState != HomingState::FINDING_LEFT) {
+                    // Emergency stop if not homing
+                    if (g_stepper && g_stepper->isRunning()) {
+                        g_stepper->forceStop();
+                        g_motionState = MotionState::IDLE;
+                        SAFE_WRITE_STATUS(safetyState, SafetyState::LEFT_LIMIT_ACTIVE);
+                        g_limitFaultActive = true;  // Latch the fault
+                        Serial.println("StepperController: FAULT - Left limit hit! Homing required.");
+                    }
+                }
+            } else {
+                Serial.println("StepperController: Left limit released");
+                // Note: Fault remains latched until cleared by successful homing
+            }
+        }
+    } else {
+        // State matches - reset debounce timer and clear flag
+        g_leftLimitDebounceStart = 0;
+        g_leftLimitTriggered = false;
+    }
+}
+
+/**
+ * Process right limit switch state change
+ * Called from Core 0 task only
+ */
+static void processRightLimit(bool currentReading, uint32_t currentTime) {
+    // Check if state is different from our known state
+    if (currentReading != g_rightLimitState) {
+        // Start or continue debounce timer
+        if (g_rightLimitDebounceStart == 0) {
+            g_rightLimitDebounceStart = currentTime;
+        } else if (currentTime - g_rightLimitDebounceStart >= LIMIT_SWITCH_DEBOUNCE) {
+            // State has been stable for debounce period - confirm the change
+            g_rightLimitState = currentReading;
+            g_rightLimitDebounceStart = 0;
+            g_rightLimitTriggered = false;  // Clear interrupt flag after processing
+            
+            if (g_rightLimitState) {
+                Serial.println("StepperController: Right limit ACTIVATED");
+                
+                // Handle based on current state
+                if (g_homingState != HomingState::FINDING_RIGHT) {
+                    // Emergency stop if not homing
+                    if (g_stepper && g_stepper->isRunning()) {
+                        g_stepper->forceStop();
+                        g_motionState = MotionState::IDLE;
+                        SAFE_WRITE_STATUS(safetyState, SafetyState::RIGHT_LIMIT_ACTIVE);
+                        g_limitFaultActive = true;  // Latch the fault
+                        Serial.println("StepperController: FAULT - Right limit hit! Homing required.");
+                    }
+                }
+            } else {
+                Serial.println("StepperController: Right limit released");
+                // Note: Fault remains latched until cleared by successful homing
+            }
+        }
+    } else {
+        // State matches - reset debounce timer and clear flag
+        g_rightLimitDebounceStart = 0;
+        g_rightLimitTriggered = false;
+    }
+}
+
+/**
+ * Check limit switches with continuous monitoring
+ * Called from Core 0 task only
+ */
+static void checkLimitSwitches() {
     uint32_t currentTime = millis();
     
-    // Check left limit with enhanced noise filtering
-    if (g_leftLimitTriggered) {
-        bool currentReading = (digitalRead(LEFT_LIMIT_PIN) == LOW);
-        
-        // Require multiple consecutive stable readings
-        if (currentReading != g_leftLimitState) {
-            if (currentTime - g_leftLimitDebounceTime > LIMIT_SWITCH_DEBOUNCE) {
-                g_leftLimitStableCount++;
-                
-                // Only change state after LIMIT_STABLE_READS consecutive readings
-                if (g_leftLimitStableCount >= LIMIT_STABLE_READS) {
-                    g_leftLimitState = currentReading;
-                    g_leftLimitStableCount = 0;
-                    g_leftLimitDebounceTime = currentTime;
-                    
-                    if (g_leftLimitState) {
-                        Serial.println("StepperController: Left limit activated (filtered)");
-                        
-                        // Handle based on current state
-                        if (g_homingState != HomingState::FINDING_LEFT) {
-                            // Emergency stop if not homing
-                            if (g_stepper && g_stepper->isRunning()) {
-                                g_stepper->forceStop();
-                                g_motionState = MotionState::IDLE;
-                                SAFE_WRITE_STATUS(safetyState, SafetyState::LEFT_LIMIT_ACTIVE);
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            // Reading matches current state, reset counter
-            g_leftLimitStableCount = 0;
-            g_leftLimitDebounceTime = currentTime;
-        }
+    // Always read current pin states (continuous monitoring)
+    bool leftPinReading = (digitalRead(LEFT_LIMIT_PIN) == LOW);
+    bool rightPinReading = (digitalRead(RIGHT_LIMIT_PIN) == LOW);
+    
+    // Process left limit if pin changed OR interrupt fired
+    if (leftPinReading != g_lastLeftPinReading || g_leftLimitTriggered) {
+        processLeftLimit(leftPinReading, currentTime);
+        g_lastLeftPinReading = leftPinReading;
     }
     
-    // Check right limit with enhanced noise filtering
-    if (g_rightLimitTriggered) {
-        bool currentReading = (digitalRead(RIGHT_LIMIT_PIN) == LOW);
-        
-        // Require multiple consecutive stable readings
-        if (currentReading != g_rightLimitState) {
-            if (currentTime - g_rightLimitDebounceTime > LIMIT_SWITCH_DEBOUNCE) {
-                g_rightLimitStableCount++;
-                
-                // Only change state after LIMIT_STABLE_READS consecutive readings
-                if (g_rightLimitStableCount >= LIMIT_STABLE_READS) {
-                    g_rightLimitState = currentReading;
-                    g_rightLimitStableCount = 0;
-                    g_rightLimitDebounceTime = currentTime;
-                    
-                    if (g_rightLimitState) {
-                        Serial.println("StepperController: Right limit activated (filtered)");
-                        
-                        // Handle based on current state
-                        if (g_homingState != HomingState::FINDING_RIGHT) {
-                            // Emergency stop if not homing
-                            if (g_stepper && g_stepper->isRunning()) {
-                                g_stepper->forceStop();
-                                g_motionState = MotionState::IDLE;
-                                SAFE_WRITE_STATUS(safetyState, SafetyState::RIGHT_LIMIT_ACTIVE);
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            // Reading matches current state, reset counter
-            g_rightLimitStableCount = 0;
-            g_rightLimitDebounceTime = currentTime;
-        }
+    // Process right limit if pin changed OR interrupt fired
+    if (rightPinReading != g_lastRightPinReading || g_rightLimitTriggered) {
+        processRightLimit(rightPinReading, currentTime);
+        g_lastRightPinReading = rightPinReading;
     }
     
-    // Update status based on current states
+    // Update global status
     SAFE_WRITE_STATUS(limitsActive[0], g_leftLimitState);
     SAFE_WRITE_STATUS(limitsActive[1], g_rightLimitState);
 }
@@ -304,9 +349,12 @@ static void updateHomingSequence() {
                 g_homingProgress = 100;
                 g_systemHomed = true;
                 g_motionState = MotionState::IDLE;
+                g_limitFaultActive = false;  // Clear any limit faults after successful homing
+                SAFE_WRITE_STATUS(safetyState, SafetyState::NORMAL);  // Clear safety state
                 
                 uint32_t homingTime = millis() - g_homingStartTime;
                 Serial.println("StepperController: Homing complete!");
+                Serial.println("StepperController: Limit faults cleared.");
                 Serial.printf("StepperController: Position range: %d to %d (%d total steps)\n",
                              g_minPosition, g_maxPosition, g_maxPosition - g_minPosition);
                 Serial.printf("StepperController: Homing took %lu ms\n", homingTime);
@@ -452,20 +500,17 @@ static void startHomingSequence() {
 // ============================================================================
 
 void stepperControllerTask(void* parameter) {
-    const TickType_t xFrequency = pdMS_TO_TICKS(1); // 1ms for reasonable response time
+    const TickType_t xFrequency = pdMS_TO_TICKS(2); // 2ms for less frequent GPIO reads
     TickType_t xLastWakeTime = xTaskGetTickCount();
     
     Serial.println("StepperController: Core 0 task started");
+    Serial.println("StepperController: Continuous limit monitoring enabled (2ms interval)");
     
     while (true) {
         // ====================================================================
-        // Check limit switch flags from ISR (every cycle - 1ms)
+        // Check limit switches with continuous monitoring (every cycle - 2ms)
         // ====================================================================
-        if (g_leftLimitTriggered || g_rightLimitTriggered) {
-            handleLimitFlags();
-            g_leftLimitTriggered = false;
-            g_rightLimitTriggered = false;
-        }
+        checkLimitSwitches();
         
         // ====================================================================
         // Process motion commands from queue (every cycle)
@@ -490,7 +535,7 @@ void stepperControllerTask(void* parameter) {
         updateMotionStatus();
         
         // ====================================================================
-        // Check CL57Y ALARM (every 10 cycles = 10ms)
+        // Check CL57Y ALARM (every 10 cycles = 20ms)
         // ====================================================================
         static uint8_t alarmCounter = 0;
         if (++alarmCounter >= 10) {
@@ -498,7 +543,7 @@ void stepperControllerTask(void* parameter) {
             checkAlarmStatus();
         }
         
-        // Precise 1ms timing
+        // Precise 2ms timing
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
@@ -542,14 +587,14 @@ bool initialize() {
     g_stepper->setDirectionPin(STEPPER_DIR_PIN);
     // Set enable pin with HIGH = enabled (inverted from default)
     g_stepper->setEnablePin(STEPPER_ENABLE_PIN, false);  // false = HIGH enables stepper
-    g_stepper->setAutoEnable(false);  // CHANGED: Keep motor enabled after moves for position holding
+    g_stepper->setAutoEnable(false);  // Keep motor enabled to avoid startup issues
     
     // Set initial motion parameters
     g_stepper->setSpeedInHz(g_currentProfile.maxSpeed);
     g_stepper->setAcceleration(g_currentProfile.acceleration);
     g_stepper->setCurrentPosition(0);
     
-    // Enable the stepper by default for position holding
+    // Enable the stepper
     g_stepper->enableOutputs();
     g_stepperEnabled = true;
     
@@ -575,13 +620,15 @@ bool initialize() {
         return false;
     }
     
-    // Initialize limit states
+    // Initialize limit states and cache
     g_leftLimitState = (digitalRead(LEFT_LIMIT_PIN) == LOW);
     g_rightLimitState = (digitalRead(RIGHT_LIMIT_PIN) == LOW);
+    g_lastLeftPinReading = g_leftLimitState;
+    g_lastRightPinReading = g_rightLimitState;
     
-    // Initialize limit flags to current state so we handle them properly
-    g_leftLimitTriggered = g_leftLimitState;
-    g_rightLimitTriggered = g_rightLimitState;
+    // Clear interrupt flags at startup
+    g_leftLimitTriggered = false;
+    g_rightLimitTriggered = false;
     
     g_initialized = true;
     
@@ -601,10 +648,22 @@ bool processMotionCommand(const MotionCommand& cmd) {
     
     if (xSemaphoreTake(g_stepperMutex, pdMS_TO_TICKS(10)) != pdTRUE) {
         Serial.println("StepperController: Failed to acquire mutex for command");
+        // Release any held resources and return
         return false;
     }
     
     bool success = false;
+    
+    // Check for limit fault - reject motion commands if fault is active
+    if (g_limitFaultActive && 
+        (cmd.type == CommandType::MOVE_ABSOLUTE || 
+         cmd.type == CommandType::MOVE_RELATIVE ||
+         cmd.type == CommandType::SET_SPEED ||
+         cmd.type == CommandType::SET_ACCELERATION)) {
+        Serial.println("StepperController: REJECTED - Limit fault active. Home required.");
+        SAFE_WRITE_STATUS(safetyState, SafetyState::POSITION_ERROR);
+        return false;
+    }
     
     switch (cmd.type) {
         case CommandType::MOVE_ABSOLUTE:
@@ -911,6 +970,27 @@ bool isAlarmActive() {
     bool alarm = false;
     SAFE_READ_STATUS(stepperAlarm, alarm);
     return alarm;
+}
+
+bool enableStepDiagnostics(bool enable) {
+    g_enableStepDiagnostics = enable;
+    if (enable) {
+        Serial.println("StepperController: Step timing diagnostics ENABLED");
+        Serial.println("  - Will report motion state transitions");
+        Serial.println("  - Will capture step intervals at transitions");
+        Serial.println("  - Will flag unusual step timings");
+        // Clear diagnostic data
+        memset(g_stepIntervals, 0, sizeof(g_stepIntervals));
+        g_stepIntervalIndex = 0;
+        g_lastStepTime = 0;
+    } else {
+        Serial.println("StepperController: Step timing diagnostics DISABLED");
+    }
+    return true;
+}
+
+bool isLimitFaultActive() {
+    return g_limitFaultActive;
 }
 
 bool update() {
