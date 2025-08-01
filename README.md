@@ -300,6 +300,7 @@ This is a comprehensive modular stepper motor control system with DMX input and 
 - [x] **New Commands** - PARAMS (list parameters) and TEST (range test) commands
 - [x] **Configuration Persistence** - All motion parameters load from flash on boot
 - [x] **User-Configurable Homing Speed** - Adjustable via CONFIG command
+- [x] **Fixed JSON Command Processing** - Config commands now work without "get":"all"
 
 **Recent Fixes (2025-01-30):**
 - Fixed limit switch emergency stop bug - now properly stops when limits active
@@ -589,11 +590,24 @@ Position Tracking          ALARM Signal
 ✅ **Phase 1**: Hardware foundation and module framework - COMPLETE  
 ✅ **Phase 2**: Configuration management with flash storage - COMPLETE  
 ✅ **Phase 3**: Interactive command interface (human & JSON) - COMPLETE  
-🚀 **Phase 4**: Motion control with ODStepper integration - MAJOR PROGRESS  
+🚀 **Phase 4**: Motion control with ODStepper integration - NEAR COMPLETE  
 🔄 **Phase 5**: SafetyMonitor module - PARTIALLY IMPLEMENTED (via StepperController)
 📝 **Phase 6**: DMXReceiver module - PLANNED
 
-**Current State: System has complete motion control with auto-range homing, limit switch protection, noise filtering, and comprehensive command interface. Ready for production testing!**
+**Current State (2025-01-31)**: 
+- Complete motion control system with professional-quality features
+- Auto-range homing with configurable speed
+- Robust limit switch protection with industrial-standard fault latching
+- Full configuration persistence across power cycles
+- Comprehensive command interface supporting both human and JSON formats
+- All motion parameters user-configurable and saved to flash
+- Ready for production testing and DMX integration!
+
+**Latest Updates**:
+- Fixed configuration loading from flash on boot
+- Added user-configurable homing speed parameter
+- Fixed JSON command processing for easier integration
+- Documented all features and command usage
 
 **Recent Development (2025-01-31):**
 
@@ -611,6 +625,12 @@ Position Tracking          ALARM Signal
   - Persists across reboots with other configuration parameters
   - Included in CONFIG, PARAMS, and JSON outputs
   - Can be reset individually or with motion parameter group
+
+- ✅ **Fixed JSON Command Processing**
+  - JSON config command now works with just `{"command":"config"}`
+  - No longer requires `"get":"all"` syntax
+  - JSON commands work best when not in JSON output mode
+  - Added clear documentation about JSON command usage
 
 **Major Accomplishments:**
 - ✅ **Fixed Intermittent Limit Switch Detection**
@@ -868,3 +888,27 @@ attachInterrupt(digitalPinToInterrupt(RIGHT_LIMIT_PIN), rightLimitISR, FALLING);
 - `VERBOSE 0-3` - Set output verbosity
 - `JSON ON/OFF` - Switch to JSON output mode
 - `STREAM ON/OFF` - Enable/disable status streaming
+
+### JSON API Commands:
+**Important**: JSON commands should be sent when in normal mode (`JSON OFF`). The `JSON ON/OFF` command only affects output format, not input parsing.
+
+#### Examples:
+```json
+{"command":"status"}
+{"command":"config"}
+{"command":"move","position":1000}
+{"command":"home"}
+{"command":"stop"}
+{"command":"enable"}
+{"command":"disable"}
+{"command":"config","set":{"maxSpeed":2000}}
+{"command":"config","set":{"homingSpeed":1500}}
+{"command":"config","set":{"dmxStartChannel":10,"dmxScale":5.0}}
+```
+
+### Configurable Parameters:
+- **Motion**: `maxSpeed`, `acceleration`, `homingSpeed`
+- **DMX**: `dmxStartChannel`, `dmxScale`, `dmxOffset`
+- **System**: `verbosity`
+
+Use `PARAMS` command for full parameter details with ranges and defaults.

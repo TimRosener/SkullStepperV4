@@ -760,9 +760,13 @@ namespace SerialInterface {
     }
     else if (command == "config") {
       if (doc.containsKey("get")) {
+        // For config get command, just return the config
         return sendJSONConfig();
       } else if (doc.containsKey("set")) {
         return processJSONConfigSet(doc["set"]);
+      } else {
+        // No get or set specified, just return config
+        return sendJSONConfig();
       }
     }
     else if (command == "move") {
