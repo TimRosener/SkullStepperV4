@@ -50,6 +50,7 @@ namespace SystemConfigMgr {
     g_systemConfig.homePosition = 0;
     g_systemConfig.minPosition = MIN_POSITION_STEPS;
     g_systemConfig.maxPosition = MAX_POSITION_STEPS;
+    g_systemConfig.homingSpeed = 940.0f;  // Default homing speed (steps/sec)
     
     // DMX configuration
     g_systemConfig.dmxStartChannel = DMX_START_CHANNEL;
@@ -100,6 +101,7 @@ namespace SystemConfigMgr {
     g_systemConfig.homePosition = g_preferences.getInt("homePos", 0);
     g_systemConfig.minPosition = g_preferences.getInt("minPos", MIN_POSITION_STEPS);
     g_systemConfig.maxPosition = g_preferences.getInt("maxPos", MAX_POSITION_STEPS);
+    g_systemConfig.homingSpeed = g_preferences.getFloat("homingSpeed", 940.0f);
     
     // Load DMX configuration
     g_systemConfig.dmxStartChannel = g_preferences.getUShort("dmxChannel", DMX_START_CHANNEL);
@@ -134,6 +136,7 @@ namespace SystemConfigMgr {
     Serial.printf("    Home Position: %d steps\n", g_systemConfig.homePosition);
     Serial.printf("    Min Position: %d steps\n", g_systemConfig.minPosition);
     Serial.printf("    Max Position: %d steps\n", g_systemConfig.maxPosition);
+    Serial.printf("    Homing Speed: %.1f steps/sec\n", g_systemConfig.homingSpeed);
     
     Serial.printf("  DMX Configuration:\n");
     Serial.printf("    Start Channel: %d\n", g_systemConfig.dmxStartChannel);
@@ -178,6 +181,7 @@ namespace SystemConfigMgr {
     g_preferences.putInt("homePos", g_systemConfig.homePosition);
     g_preferences.putInt("minPos", g_systemConfig.minPosition);
     g_preferences.putInt("maxPos", g_systemConfig.maxPosition);
+    g_preferences.putFloat("homingSpeed", g_systemConfig.homingSpeed);
     
     // Save DMX configuration
     g_preferences.putUShort("dmxChannel", g_systemConfig.dmxStartChannel);
@@ -424,6 +428,7 @@ namespace SystemConfigMgr {
     doc["position"]["homePosition"] = g_systemConfig.homePosition;
     doc["position"]["minPosition"] = g_systemConfig.minPosition;
     doc["position"]["maxPosition"] = g_systemConfig.maxPosition;
+    doc["position"]["homingSpeed"] = g_systemConfig.homingSpeed;
     
     // DMX configuration
     doc["dmx"]["startChannel"] = g_systemConfig.dmxStartChannel;
@@ -471,6 +476,7 @@ namespace SystemConfigMgr {
       tempConfig.homePosition = doc["position"]["homePosition"] | tempConfig.homePosition;
       tempConfig.minPosition = doc["position"]["minPosition"] | tempConfig.minPosition;
       tempConfig.maxPosition = doc["position"]["maxPosition"] | tempConfig.maxPosition;
+      tempConfig.homingSpeed = doc["position"]["homingSpeed"] | tempConfig.homingSpeed;
     }
     
     // Import DMX configuration

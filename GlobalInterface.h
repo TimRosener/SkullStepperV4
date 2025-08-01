@@ -128,6 +128,7 @@ struct SystemConfig {
   int32_t homePosition;
   int32_t minPosition;
   int32_t maxPosition;
+  float homingSpeed;        // Speed for homing sequence (steps/sec)
   
   // DMX Settings
   uint16_t dmxStartChannel;

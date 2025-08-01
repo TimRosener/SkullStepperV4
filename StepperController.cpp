@@ -12,6 +12,7 @@
 
 #include "StepperController.h"
 #include "HardwareConfig.h"
+#include "SystemConfig.h"
 #include <ODStepper.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -108,7 +109,7 @@ enum class HomingState {
 static HomingState g_homingState = HomingState::IDLE;
 static uint8_t g_homingProgress = 0;
 static int32_t g_detectedRightLimit = 0;
-static const int32_t HOMING_SPEED = 375;  // steps/sec for homing (increased by 50% from 250)
+static float g_homingSpeed = 940.0f;  // Homing speed (steps/sec) - loaded from config
 static const int32_t BACKOFF_STEPS = 50;  // steps to back off from limits
 static const int32_t POSITION_MARGIN = 10; // safety margin from limits
 static const uint32_t HOMING_TIMEOUT_MS = 90000; // 90 second timeout for finding limits (3x longer for full travel)
@@ -291,7 +292,7 @@ static void updateHomingSequence() {
                 g_minPosition = POSITION_MARGIN;
                 
                 // Start moving to find right limit - use a much larger distance
-                g_stepper->setSpeedInHz(HOMING_SPEED);
+                g_stepper->setSpeedInHz(g_homingSpeed);
                 g_stepper->moveTo(100000); // Move 100k steps - should hit limit before this
                 g_homingState = HomingState::FINDING_RIGHT;
                 g_homingPhaseStartTime = millis();
@@ -459,8 +460,8 @@ static void startHomingSequence() {
     g_homingStartTime = millis();
     g_homingPhaseStartTime = millis();
     
-    // Set slow speed for homing
-    g_stepper->setSpeedInHz(HOMING_SPEED);
+    // Set homing speed from configuration
+    g_stepper->setSpeedInHz(g_homingSpeed);
     g_stepper->setAcceleration(g_currentProfile.acceleration);
     
     // Check initial limit switch states
@@ -491,8 +492,8 @@ static void startHomingSequence() {
     
     g_motionState = MotionState::HOMING;
     
-    Serial.printf("StepperController: Homing at %d steps/sec, timeout %lu ms\n", 
-                  HOMING_SPEED, HOMING_TIMEOUT_MS);
+    Serial.printf("StepperController: Homing at %.1f steps/sec, timeout %lu ms\n", 
+                  g_homingSpeed, HOMING_TIMEOUT_MS);
 }
 
 // ============================================================================
@@ -589,7 +590,26 @@ bool initialize() {
     g_stepper->setEnablePin(STEPPER_ENABLE_PIN, false);  // false = HIGH enables stepper
     g_stepper->setAutoEnable(false);  // Keep motor enabled to avoid startup issues
     
-    // Set initial motion parameters
+    // Load saved configuration from SystemConfig
+    SystemConfig* config = SystemConfigMgr::getConfig();
+    if (config) {
+        // Update motion profile with saved values
+        g_currentProfile.maxSpeed = config->defaultProfile.maxSpeed;
+        g_currentProfile.acceleration = config->defaultProfile.acceleration;
+        g_currentProfile.deceleration = config->defaultProfile.acceleration; // Same value
+        g_currentProfile.jerk = config->defaultProfile.jerk;
+        g_currentProfile.enableLimits = config->defaultProfile.enableLimits;
+        
+        // Load homing speed
+        g_homingSpeed = config->homingSpeed;
+        
+        Serial.printf("StepperController: Loaded saved config - Speed: %.1f, Accel: %.1f, Homing: %.1f\n",
+                     g_currentProfile.maxSpeed, g_currentProfile.acceleration, g_homingSpeed);
+    } else {
+        Serial.println("StepperController: WARNING - Using default config values");
+    }
+    
+    // Set motion parameters
     g_stepper->setSpeedInHz(g_currentProfile.maxSpeed);
     g_stepper->setAcceleration(g_currentProfile.acceleration);
     g_stepper->setCurrentPosition(0);

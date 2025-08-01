@@ -299,6 +299,14 @@ namespace SerialInterface {
         return true;
       }
     }
+    else if (param == "homingspeed") {
+      config->homingSpeed = 940.0f;  // Default homing speed
+      if (SystemConfigMgr::commitChanges()) {
+        sendInfo("Homing speed reset to default");
+        sendOK();
+        return true;
+      }
+    }
     else if (param == "dmxstartchannel" || param == "dmxchannel") {
       if (SystemConfigMgr::setDMXConfig(DMX_START_CHANNEL, config->dmxScale, config->dmxOffset) && SystemConfigMgr::commitChanges()) {
         sendInfo("DMX start channel reset to default");
@@ -339,6 +347,7 @@ namespace SerialInterface {
       profile.acceleration = DEFAULT_ACCELERATION;
       profile.deceleration = DEFAULT_ACCELERATION;
       profile.jerk = 1000.0f;
+      config->homingSpeed = 940.0f;
       if (SystemConfigMgr::setMotionProfile(profile) && SystemConfigMgr::commitChanges()) {
         sendInfo("All motion settings reset to defaults");
         sendOK();
@@ -346,7 +355,7 @@ namespace SerialInterface {
       }
     }
     else {
-      sendError("Unknown parameter. Available: maxSpeed, acceleration, deceleration, jerk, dmxStartChannel, dmxScale, dmxOffset, verbosity, dmx, motion");
+      sendError("Unknown parameter. Available: maxSpeed, acceleration, deceleration, jerk, homingSpeed, dmxStartChannel, dmxScale, dmxOffset, verbosity, dmx, motion");
       return false;
     }
     
@@ -964,6 +973,23 @@ namespace SerialInterface {
         return false;
       }
     }
+    else if (param == "homingspeed") {
+      float speed;
+      if (!parseFloat(value, speed) || speed <= 0 || speed > 10000) {
+        sendError("Invalid homing speed value (must be 0-10000 steps/sec)");
+        return false;
+      }
+      sendDebug("Setting homing speed");
+      config->homingSpeed = speed;
+      if (SystemConfigMgr::commitChanges()) {
+        sendInfo("Homing speed updated successfully");
+        sendOK();
+        return true;
+      } else {
+        sendError("Failed to save homing speed to flash");
+        return false;
+      }
+    }
     else {
       sendError("Unknown configuration parameter");
       return false;
@@ -1229,6 +1255,12 @@ namespace SerialInterface {
     doc["config"]["position"]["range"]["units"] = "steps";
     doc["config"]["position"]["range"]["description"] = "Position range (must be >= 100 steps)";
     
+    doc["config"]["position"]["homingSpeed"]["value"] = config->homingSpeed;
+    doc["config"]["position"]["homingSpeed"]["min"] = 0.0;
+    doc["config"]["position"]["homingSpeed"]["max"] = 10000.0;
+    doc["config"]["position"]["homingSpeed"]["units"] = "steps/sec";
+    doc["config"]["position"]["homingSpeed"]["description"] = "Speed used during homing sequence";
+    
     // DMX configuration
     doc["config"]["dmx"]["startChannel"]["value"] = config->dmxStartChannel;
     doc["config"]["dmx"]["startChannel"]["min"] = 1;
@@ -1365,6 +1397,8 @@ namespace SerialInterface {
     Serial.println("                      (Currently uses same value as acceleration)");
     Serial.println("  jerk                Range: 0-50000 steps/sec³   Default: 1000");
     Serial.println("                      Jerk limitation (future use)");
+    Serial.println("  homingSpeed         Range: 0-10000 steps/sec    Default: 940");
+    Serial.println("                      Speed used during homing sequence");
     
     Serial.println("\nDMX Parameters:");
     Serial.println("  dmxStartChannel     Range: 1-512                Default: 1");
@@ -1383,6 +1417,7 @@ namespace SerialInterface {
     Serial.println("\nUsage Examples:");
     Serial.println("  CONFIG SET maxSpeed 2000        # Set max speed to 2000 steps/sec");
     Serial.println("  CONFIG SET acceleration 1500    # Set acceleration to 1500 steps/sec²");
+    Serial.println("  CONFIG SET homingSpeed 1500     # Set homing speed to 1500 steps/sec");
     Serial.println("  CONFIG SET dmxStartChannel 10   # Monitor DMX channel 10");
     Serial.println("  CONFIG SET dmxScale 5.0         # 5 steps per DMX unit");
     Serial.println("  CONFIG SET dmxOffset 1000       # Add 1000 steps offset");

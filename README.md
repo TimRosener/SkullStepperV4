@@ -298,6 +298,8 @@ This is a comprehensive modular stepper motor control system with DMX input and 
 - [x] **Continuous Limit Monitoring** - Fixed critical bug, limits now stop motion reliably
 - [x] **Position Holding** - Motor stays enabled by default
 - [x] **New Commands** - PARAMS (list parameters) and TEST (range test) commands
+- [x] **Configuration Persistence** - All motion parameters load from flash on boot
+- [x] **User-Configurable Homing Speed** - Adjustable via CONFIG command
 
 **Recent Fixes (2025-01-30):**
 - Fixed limit switch emergency stop bug - now properly stops when limits active
@@ -509,6 +511,7 @@ Position Tracking          ALARM Signal
 | `acceleration` | 0-20000 | steps/sec² | 500 | Acceleration rate |
 | `deceleration` | 0-20000 | steps/sec² | 500 | Deceleration rate |
 | `jerk` | 0-50000 | steps/sec³ | 1000 | Jerk limitation |
+| `homingSpeed` | 0-10000 | steps/sec | 940 | Speed during homing |
 
 **Note**: FastAccelStepper uses same value for acceleration/deceleration
 
@@ -593,6 +596,21 @@ Position Tracking          ALARM Signal
 **Current State: System has complete motion control with auto-range homing, limit switch protection, noise filtering, and comprehensive command interface. Ready for production testing!**
 
 **Recent Development (2025-01-31):**
+
+**Configuration System Enhancements:**
+- ✅ **Fixed Configuration Loading on Boot**
+  - StepperController now properly loads saved configuration from flash on initialization
+  - Motion parameters (maxSpeed, acceleration, etc.) persist across reboots
+  - Added configuration loading diagnostics in startup sequence
+  - Ensures user settings are always applied on system startup
+
+- ✅ **Added User-Configurable Homing Speed**
+  - Homing speed is now a configurable parameter (was hardcoded)
+  - Range: 0-10000 steps/sec, Default: 940 steps/sec
+  - Accessible via `CONFIG SET homingSpeed <value>` command
+  - Persists across reboots with other configuration parameters
+  - Included in CONFIG, PARAMS, and JSON outputs
+  - Can be reset individually or with motion parameter group
 
 **Major Accomplishments:**
 - ✅ **Fixed Intermittent Limit Switch Detection**

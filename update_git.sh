@@ -26,76 +26,63 @@ echo -e "\nAdding all changed files..."
 git add .
 
 # Create a comprehensive commit message
-COMMIT_MESSAGE="Critical fixes: Acceleration issues resolved, enhanced limit switch safety
+COMMIT_MESSAGE="Configuration system enhancements: Persistence fixes and user-configurable homing speed
 
-## Major Fixes (2025-01-31):
+## Configuration Persistence Fix (2025-01-31):
 
-### Acceleration/Deceleration Issues RESOLVED:
-- Diagnosed jerky motion during acceleration/deceleration phases
-- Root cause: Mechanical issue - loose coupler between motor and lead screw
-- Added step timing diagnostics (DIAG ON/OFF command) to identify problem
-- FastAccelStepper was generating correct pulses, mechanical slippage caused irregular motion
-- Solution: Tighten mechanical couplers, no software changes needed
-- Removed diagnostic overhead after successful troubleshooting
+### Fixed Configuration Loading on Boot:
+- StepperController now properly loads saved configuration from flash during initialization
+- Added SystemConfig include and getConfig() call in StepperController::initialize()
+- Motion parameters (maxSpeed, acceleration, jerk, enableLimits) now persist across reboots
+- System uses saved values instead of hardcoded defaults from HardwareConfig.h
+- Added diagnostic output confirming loaded values on startup
+- Fallback to defaults if configuration load fails
 
-### Enhanced Limit Switch Safety:
-- Implemented redundant detection: Hardware interrupts + continuous polling
-- Added 3-sample validation with enhanced debounce logic (100ms + sample validation)
-- Fixed intermittent limit detection issues with new continuous monitoring every 2ms
-- Limit flags now cleared only after confirmed state change
-- Added clear status messages for both activation and release events
-- CPU overhead minimal (only 0.2% for continuous monitoring)
+### Benefits:
+- User settings are preserved through power cycles
+- No need to reconfigure after each boot
+- Consistent behavior with saved preferences
+- Clear feedback about loaded configuration
 
-### Improved Motion Control:
-- Reduced homing speed by 50% (now 375 steps/sec) for safer operation
-- Fixed CONFIG SET commands not immediately applying to StepperController
-- Motion parameters now update in real-time when changed via CONFIG
-- Added proper parameter synchronization between modules
+## User-Configurable Homing Speed (2025-01-31):
 
-### Enhanced Safety Features:
-- Implemented industrial-standard fault latching system
-- Motion commands rejected when limit fault is active
-- Requires homing sequence to clear faults (prevents repeated limit hits)
-- Fixed TEST command to stop cleanly on limit fault detection
-- Prevents command queue flooding during fault conditions
-- Added fault state persistence until proper recovery
+### Added Homing Speed Parameter:
+- Homing speed is now a user-configurable parameter (was hardcoded at 940 steps/sec)
+- Added 'homingSpeed' to SystemConfig structure in GlobalInterface.h
+- Integrated with flash storage for persistence
+- Range: 0-10000 steps/sec, Default: 940 steps/sec
+- Accessible via 'CONFIG SET homingSpeed <value>' command
 
-### New Test Routines:
-- Added TEST2/RANDOMTEST command - moves to 10 random positions
-- Helps verify smooth motion across full range
-- Both tests interruptible with any keypress
-- Shows test progress and completion status
-- Validates system performance after mechanical adjustments
+### Implementation Details:
+- SystemConfig.cpp: Added to default config, load/save functions, and JSON export/import
+- StepperController.cpp: Changed from const HOMING_SPEED to g_homingSpeed variable
+- StepperController loads homing speed from config on initialization
+- SerialInterface.cpp: Added CONFIG SET/RESET commands for homingSpeed
+- Added to PARAMS command output with usage examples
+- Included in CONFIG JSON output with metadata (range, units, description)
+- Added to 'motion' parameter group for bulk reset
 
-### StepperController Improvements:
-- Optimized checkLimitSwitches() for redundant detection
-- Enhanced updateHomingSequence() with better state transitions
-- Added proper fault clearing mechanism after successful homing
-- Improved processMotionCommand() to respect fault states
-- Better integration with SerialInterface for parameter updates
+### User Interface:
+- CONFIG SET homingSpeed 1500    # Set homing speed to 1500 steps/sec
+- CONFIG RESET homingSpeed       # Reset to default (940 steps/sec)
+- CONFIG RESET motion            # Reset all motion params including homingSpeed
+- PARAMS                         # Shows homingSpeed in parameter list
+- CONFIG                         # Displays current homing speed value
 
-### Documentation Updates:
-- Added mechanical troubleshooting guide
-- Documented step timing diagnostic feature
-- Updated safety features documentation
-- Added lessons learned about mechanical vs software issues
-- Enhanced test command documentation
+## Documentation Updates:
+- Updated README.md with configuration persistence information
+- Added homingSpeed to configuration parameter table
+- Updated Phase 4 accomplishments with new features
+- Added recent development notes for both enhancements
 
-## Key Lessons Learned:
-- Mechanical issues (loose coupler) can manifest as software timing problems
-- Step interval diagnostics are valuable for troubleshooting motion irregularities
-- Continuous limit monitoring at 2ms provides optimal safety/performance balance
-- Proper fault latching prevents dangerous repeated limit hits
-- Redundant detection (interrupt + polling) ensures reliable limit detection
+## Testing Recommendations:
+1. Set custom configuration values (maxSpeed, acceleration, homingSpeed)
+2. Reboot system and verify values persist
+3. Run HOME command with different homingSpeed settings
+4. Verify smooth operation at various homing speeds
+5. Test CONFIG RESET functionality for individual and group resets
 
-## System Status:
-- Motion control now smooth throughout acceleration/deceleration phases
-- Limit switches highly reliable with enhanced detection
-- Safety features meet industrial control standards
-- System ready for extended production testing
-- All Phase 4 objectives achieved with professional quality
-
-This commit represents critical bug fixes and safety enhancements based on extensive testing."
+This update completes the configuration system with full persistence and adds flexibility to the homing sequence speed control."
 
 # Commit with the comprehensive message
 echo -e "\nCommitting changes..."
