@@ -1139,9 +1139,23 @@ namespace SerialInterface {
     Serial.printf("Speed: %.1f steps/sec\n", currentSpeed);
     Serial.printf("Stepper: %s\n", stepperEnabled ? "ENABLED" : "DISABLED");
     
+    // Show homing status
+    if (!StepperController::isHomed()) {
+        Serial.println("\n*** SYSTEM NOT HOMED - MOVEMENT DISABLED ***");
+        Serial.println("Use HOME command to establish position limits");
+    } else {
+        // Show position limits if homed
+        int32_t minPos, maxPos;
+        if (StepperController::getPositionLimits(minPos, maxPos)) {
+            Serial.printf("Position Limits: %d to %d steps (range: %d)\n", 
+                         minPos, maxPos, maxPos - minPos);
+        }
+    }
+    
     // Show limit fault status
     if (StepperController::isLimitFaultActive()) {
-        Serial.println("*** LIMIT FAULT ACTIVE - HOMING REQUIRED ***");
+        Serial.println("\n*** LIMIT FAULT ACTIVE - HOMING REQUIRED ***");
+        Serial.println("Unexpected limit switch activation detected");
     }
     
     // Configuration summary
@@ -1181,6 +1195,8 @@ namespace SerialInterface {
     doc["position"]["target"] = targetPos;
     doc["speed"] = currentSpeed;
     doc["stepperEnabled"] = stepperEnabled;
+    doc["isHomed"] = StepperController::isHomed();
+    doc["limitFaultActive"] = StepperController::isLimitFaultActive();
     doc["uptime"] = getSystemUptime();
     
     // Configuration summary

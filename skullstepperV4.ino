@@ -15,6 +15,13 @@
 #include "StepperController.h"
 #include "SerialInterface.h"
 #include "SystemConfig.h"
+#include "ProjectConfig.h"  // Global project configuration
+
+// Optional modules are now configured in ProjectConfig.h
+
+#ifdef ENABLE_WEB_INTERFACE
+#include "WebInterface.h"
+#endif
 
 // Forward declaration of global infrastructure function
 bool initializeGlobalInfrastructure();
@@ -112,9 +119,21 @@ void setup() {
   Serial.println("✓ Thread-safe motion command queue ready");
   
   // ========================================================================
-  // STEP 5: Validate System Integrity
+  // STEP 5: Initialize WebInterface (Optional)
   // ========================================================================
-  Serial.println("\nSTEP 5: Validating system integrity...");
+  #ifdef ENABLE_WEB_INTERFACE
+  Serial.println("\nSTEP 5: Initializing web interface...");
+  WebInterface::getInstance().begin();
+  Serial.println("✓ WiFi Access Point created");
+  Serial.print("✓ Web interface available at: http://");
+  Serial.println(WebInterface::getInstance().getAPAddress());
+  Serial.println("✓ Connect to WiFi: SkullStepper (open network)");
+  #endif
+  
+  // ========================================================================
+  // STEP 6: Validate System Integrity
+  // ========================================================================
+  Serial.println("\nSTEP 6: Validating system integrity...");
   if (!validateSystemIntegrity()) {
     Serial.println("WARNING: System integrity validation failed");
     Serial.println("Continuing with reduced functionality");
@@ -141,6 +160,9 @@ void setup() {
   Serial.println("  ✓ Auto-range homing sequence");
   Serial.println("  ✓ Hardware limit switch protection");
   Serial.println("  ✓ CL57Y ALARM monitoring");
+  #ifdef ENABLE_WEB_INTERFACE
+  Serial.println("  ✓ Web interface on WiFi AP (http://192.168.4.1)");
+  #endif
   Serial.println("============================================================================");
   Serial.println("FULL COMMAND SYSTEM AVAILABLE:");
   Serial.println("Motion: MOVE <pos>, HOME, STOP, ESTOP, ENABLE, DISABLE");
@@ -152,8 +174,13 @@ void setup() {
   Serial.println("Type 'HELP' for complete command reference");
   Serial.println("Type 'STATUS' for system overview");
   Serial.println("Type 'CONFIG' to see all settings");
-  Serial.println("Type 'HOME' to run auto-range detection homing");
-  Serial.println("Try 'ENABLE' then 'MOVE 100' for smooth motion!");
+  Serial.println();
+  Serial.println("*** IMPORTANT: You must HOME the system before any movement! ***");
+  Serial.println("1. Type 'HOME' to run auto-range detection");
+  Serial.println("2. Wait for homing to complete");
+  Serial.println("3. Then use movement commands like 'MOVE 100'");
+  Serial.println();
+  Serial.println("Movement is blocked until homing establishes safe position limits.");
   Serial.println();
 }
 
@@ -168,6 +195,11 @@ void loop() {
   // Update serial interface (COMPLETE command processing system with JSON API)
   // This handles ALL commands: human-readable, JSON API, skull> prompt, etc.
   SerialInterface::update();
+  
+  // Update web interface if enabled
+  #ifdef ENABLE_WEB_INTERFACE
+  WebInterface::getInstance().update();
+  #endif
   
   // Update system uptime in thread-safe status
   updateSystemUptime();

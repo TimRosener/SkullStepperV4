@@ -159,11 +159,13 @@ static void processLeftLimit(bool currentReading, uint32_t currentTime) {
                 if (g_homingState != HomingState::FINDING_LEFT) {
                     // Emergency stop if not homing
                     if (g_stepper && g_stepper->isRunning()) {
+                        // Use emergency stop for proper state handling
                         g_stepper->forceStop();
                         g_motionState = MotionState::IDLE;
-                        SAFE_WRITE_STATUS(safetyState, SafetyState::LEFT_LIMIT_ACTIVE);
+                        SAFE_WRITE_STATUS(safetyState, SafetyState::EMERGENCY_STOP);
                         g_limitFaultActive = true;  // Latch the fault
-                        Serial.println("StepperController: FAULT - Left limit hit! Homing required.");
+                        Serial.println("StepperController: EMERGENCY STOP - Left limit hit!");
+                        Serial.println("StepperController: FAULT LATCHED - Homing required to clear.");
                     }
                 }
             } else {
@@ -201,11 +203,13 @@ static void processRightLimit(bool currentReading, uint32_t currentTime) {
                 if (g_homingState != HomingState::FINDING_RIGHT) {
                     // Emergency stop if not homing
                     if (g_stepper && g_stepper->isRunning()) {
+                        // Use emergency stop for proper state handling
                         g_stepper->forceStop();
                         g_motionState = MotionState::IDLE;
-                        SAFE_WRITE_STATUS(safetyState, SafetyState::RIGHT_LIMIT_ACTIVE);
+                        SAFE_WRITE_STATUS(safetyState, SafetyState::EMERGENCY_STOP);
                         g_limitFaultActive = true;  // Latch the fault
-                        Serial.println("StepperController: FAULT - Right limit hit! Homing required.");
+                        Serial.println("StepperController: EMERGENCY STOP - Right limit hit!");
+                        Serial.println("StepperController: FAULT LATCHED - Homing required to clear.");
                     }
                 }
             } else {
@@ -460,6 +464,13 @@ static void startHomingSequence() {
     g_homingStartTime = millis();
     g_homingPhaseStartTime = millis();
     
+    // Reload homing speed from configuration in case it was changed
+    SystemConfig* config = SystemConfigMgr::getConfig();
+    if (config) {
+        g_homingSpeed = config->homingSpeed;
+        Serial.printf("StepperController: Using homing speed: %.1f steps/sec\n", g_homingSpeed);
+    }
+    
     // Set homing speed from configuration
     g_stepper->setSpeedInHz(g_homingSpeed);
     g_stepper->setAcceleration(g_currentProfile.acceleration);
@@ -658,6 +669,12 @@ bool initialize() {
                   g_leftLimitState ? "ACTIVE" : "inactive",
                   g_rightLimitState ? "ACTIVE" : "inactive");
     
+    // Clear message about homing requirement
+    Serial.println("\n*** IMPORTANT: HOMING REQUIRED ***");
+    Serial.println("The system must be homed before any movement is allowed.");
+    Serial.println("Use the HOME command to establish position limits.");
+    Serial.println("Movement commands will be rejected until homing is complete.\n");
+    
     return true;
 }
 
@@ -674,14 +691,43 @@ bool processMotionCommand(const MotionCommand& cmd) {
     
     bool success = false;
     
-    // Check for limit fault - reject motion commands if fault is active
+    // Check if homing is required before allowing motion
+    bool isMotionCommand = (cmd.type == CommandType::MOVE_ABSOLUTE || 
+                           cmd.type == CommandType::MOVE_RELATIVE);
+    
+    if (isMotionCommand) {
+        // Check for limit fault
+        if (g_limitFaultActive) {
+            Serial.println("StepperController: REJECTED - Limit fault active. Home required.");
+            SAFE_WRITE_STATUS(safetyState, SafetyState::POSITION_ERROR);
+            xSemaphoreGive(g_stepperMutex);
+            return false;
+        }
+        
+        // Check if system has been homed
+        if (!g_systemHomed) {
+            Serial.println("StepperController: REJECTED - System not homed. Home required before movement.");
+            SAFE_WRITE_STATUS(safetyState, SafetyState::POSITION_ERROR);
+            xSemaphoreGive(g_stepperMutex);
+            return false;
+        }
+        
+        // Check if position limits are valid
+        if (!g_positionLimitsValid) {
+            Serial.println("StepperController: REJECTED - Position limits not established. Home required.");
+            SAFE_WRITE_STATUS(safetyState, SafetyState::POSITION_ERROR);
+            xSemaphoreGive(g_stepperMutex);
+            return false;
+        }
+    }
+    
+    // Also reject speed/acceleration changes if there's a limit fault
     if (g_limitFaultActive && 
-        (cmd.type == CommandType::MOVE_ABSOLUTE || 
-         cmd.type == CommandType::MOVE_RELATIVE ||
-         cmd.type == CommandType::SET_SPEED ||
+        (cmd.type == CommandType::SET_SPEED ||
          cmd.type == CommandType::SET_ACCELERATION)) {
         Serial.println("StepperController: REJECTED - Limit fault active. Home required.");
         SAFE_WRITE_STATUS(safetyState, SafetyState::POSITION_ERROR);
+        xSemaphoreGive(g_stepperMutex);
         return false;
     }
     
