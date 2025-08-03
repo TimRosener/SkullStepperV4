@@ -17,7 +17,7 @@ I'm working on the SkullStepperV4 project - an ESP32-S3 based closed-loop steppe
 4. **Current Status (v4.1.0 - 2025-02-02)**: 
    - **Production-Ready System** with full web interface integration
    - Phase 1-5 COMPLETE: Hardware, Config, Serial, Motion Control, Web Interface
-   - System features industrial-grade motion control with dual interfaces
+   - System features industrial-grade motion control with dual interfaces (Serial & Web)
    - Ready for Phase 6 (DMXReceiver) implementation
 
 5. **Completed Features**:
