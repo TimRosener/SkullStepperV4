@@ -87,6 +87,14 @@
 - Captive portal support
 - REST API endpoints
 
+### Information Display ✅
+- Firmware version display (4.1.0)
+- Hardware information (ESP32-S3-WROOM-1)
+- Real-time uptime monitor (days/hours/minutes/seconds)
+- Memory statistics (free heap in KB/MB)
+- FreeRTOS task monitoring (stack high water mark)
+- Active WebSocket connections count
+
 ## Missing Features in WebInterface
 
 ### 1. Configuration Management ❌
@@ -94,21 +102,25 @@
 - **No parameter validation display** - No ranges/units shown for inputs
 - **No configuration export/import** - Cannot save/load configs
 
-### 2. Information Display ❌
-- **No detailed system info** - Version, uptime, memory stats not shown
+### 2. ~~Information Display~~ ✅ (COMPLETE - Added 2025-02-02)
+- **System information panel fully implemented**
+- Version display (4.1.0)
+- Hardware info (ESP32-S3-WROOM-1)  
+- Real-time uptime monitor with human-readable formatting
+- Memory statistics with KB/MB formatting
+- FreeRTOS task stack monitoring
+- Active WebSocket connections count
+- All data updates via WebSocket at 10Hz
 
-### 3. Diagnostic Features ❌
-- **No step timing diagnostics** - Cannot enable DIAG mode
-- **No debug information display** - Limited troubleshooting capability
-- **No error log display** - Cannot see historical errors
+### 3. ~~Advanced Configuration~~ ✅ (COMPLETE - Added 2025-02-02)
+- **All advanced parameters now exposed in new "Advanced" tab**
+- Jerk control slider (0-50000 steps/sec³) with live value display
+- Emergency deceleration slider (100-50000 steps/sec²) with live value display
+- DMX timeout configuration (100-60000 ms) with validation
+- Parameter info text showing ranges and descriptions
+- Full integration with configuration save/load system
 
-### 4. Advanced Configuration ❌
-- **Limited parameter access** - Only basic motion and DMX parameters
-- **No jerk control** - Parameter exists but not exposed (0-50000 steps/sec³)
-- **No emergency deceleration setting** - Cannot configure emergency stop rate (100-50000 steps/sec²)
-- **No DMX timeout configuration** - Cannot set DMX signal timeout (100-60000 ms)
-
-### 5. User Experience ❌
+### 4. User Experience ❌
 - **No command feedback messages** - Success/error details not shown
 - **No operation confirmation dialogs** - Direct execution without confirmation
 - **No undo functionality** - Cannot revert changes

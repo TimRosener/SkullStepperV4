@@ -150,6 +150,7 @@ String WebInterface::getIndexHTML() {
                 <button class="tab-btn active" onclick="showConfigTab('motion')">Motion</button>
                 <button class="tab-btn" onclick="showConfigTab('dmx')">DMX</button>
                 <button class="tab-btn" onclick="showConfigTab('limits')">Limits</button>
+                <button class="tab-btn" onclick="showConfigTab('advanced')">Advanced</button>
             </div>
             
             <!-- Motion Configuration Tab -->
@@ -203,6 +204,28 @@ String WebInterface::getIndexHTML() {
                 <div class="config-item">
                     <label for="homePosition">Home Position:</label>
                     <input type="number" id="homePosition" step="1" placeholder="Steps">
+                </div>
+            </div>
+            
+            <!-- Advanced Configuration Tab -->
+            <div id="advanced-tab" class="config-tab">
+                <h3>Advanced Parameters</h3>
+                <div class="config-item">
+                    <label for="jerk">Jerk Limitation:</label>
+                    <input type="range" id="jerk" min="0" max="50000" step="1000">
+                    <span id="jerkValue">--</span> steps/sec³
+                    <small class="param-info">Controls smoothness of acceleration changes (0-50000)</small>
+                </div>
+                <div class="config-item">
+                    <label for="emergencyDeceleration">Emergency Deceleration:</label>
+                    <input type="range" id="emergencyDeceleration" min="100" max="50000" step="100">
+                    <span id="emergencyDecelerationValue">--</span> steps/sec²
+                    <small class="param-info">Deceleration rate for emergency stops (100-50000)</small>
+                </div>
+                <div class="config-item">
+                    <label for="dmxTimeout">DMX Timeout:</label>
+                    <input type="number" id="dmxTimeout" min="100" max="60000" step="100" placeholder="Milliseconds">
+                    <small class="param-info">Time before DMX signal loss is detected (100-60000 ms)</small>
                 </div>
             </div>
             
@@ -499,6 +522,14 @@ h1 {
     font-size: 14px;
 }
 
+.param-info {
+    display: block;
+    margin-top: 5px;
+    color: var(--text-dim);
+    font-size: 0.85em;
+    line-height: 1.3;
+}
+
 .config-tabs {
     display: flex;
     gap: 5px;
@@ -730,6 +761,14 @@ function updateUI(data) {
             document.getElementById('homingSpeed').value = data.config.homingSpeed;
             document.getElementById('homingSpeedValue').textContent = data.config.homingSpeed;
         }
+        if (data.config.jerk !== undefined) {
+            document.getElementById('jerk').value = data.config.jerk;
+            document.getElementById('jerkValue').textContent = data.config.jerk;
+        }
+        if (data.config.emergencyDeceleration !== undefined) {
+            document.getElementById('emergencyDeceleration').value = data.config.emergencyDeceleration;
+            document.getElementById('emergencyDecelerationValue').textContent = data.config.emergencyDeceleration;
+        }
         
         // DMX parameters
         if (data.config.dmxChannel !== undefined) {
@@ -740,6 +779,9 @@ function updateUI(data) {
         }
         if (data.config.dmxOffset !== undefined) {
             document.getElementById('dmxOffset').value = data.config.dmxOffset;
+        }
+        if (data.config.dmxTimeout !== undefined) {
+            document.getElementById('dmxTimeout').value = data.config.dmxTimeout;
         }
         
         // Position limits
@@ -805,9 +847,12 @@ function applyConfig() {
         maxSpeed: parseInt(document.getElementById('maxSpeed').value),
         acceleration: parseInt(document.getElementById('acceleration').value),
         homingSpeed: parseInt(document.getElementById('homingSpeed').value),
+        jerk: parseInt(document.getElementById('jerk').value),
+        emergencyDeceleration: parseInt(document.getElementById('emergencyDeceleration').value),
         dmxChannel: parseInt(document.getElementById('dmxChannel').value),
         dmxScale: parseFloat(document.getElementById('dmxScale').value),
         dmxOffset: parseInt(document.getElementById('dmxOffset').value),
+        dmxTimeout: parseInt(document.getElementById('dmxTimeout').value),
         minPosition: parseInt(document.getElementById('minPosition').value),
         maxPosition: parseInt(document.getElementById('maxPosition').value),
         homePosition: parseInt(document.getElementById('homePosition').value)
@@ -874,6 +919,16 @@ document.getElementById('homingSpeed').addEventListener('input', (e) => {
     document.getElementById('homingSpeedValue').textContent = e.target.value;
 });
 
+document.getElementById('jerk').addEventListener('input', (e) => {
+    isAdjustingSliders = true;
+    document.getElementById('jerkValue').textContent = e.target.value;
+});
+
+document.getElementById('emergencyDeceleration').addEventListener('input', (e) => {
+    isAdjustingSliders = true;
+    document.getElementById('emergencyDecelerationValue').textContent = e.target.value;
+});
+
 // Track all input interactions
 document.querySelectorAll('input').forEach(input => {
     input.addEventListener('focus', () => {
@@ -897,6 +952,14 @@ document.getElementById('homingSpeed').addEventListener('mousedown', () => {
     isAdjustingSliders = true;
 });
 
+document.getElementById('jerk').addEventListener('mousedown', () => {
+    isAdjustingSliders = true;
+});
+
+document.getElementById('emergencyDeceleration').addEventListener('mousedown', () => {
+    isAdjustingSliders = true;
+});
+
 // For touch devices
 document.getElementById('maxSpeed').addEventListener('touchstart', () => {
     isAdjustingSliders = true;
@@ -907,6 +970,14 @@ document.getElementById('acceleration').addEventListener('touchstart', () => {
 });
 
 document.getElementById('homingSpeed').addEventListener('touchstart', () => {
+    isAdjustingSliders = true;
+});
+
+document.getElementById('jerk').addEventListener('touchstart', () => {
+    isAdjustingSliders = true;
+});
+
+document.getElementById('emergencyDeceleration').addEventListener('touchstart', () => {
     isAdjustingSliders = true;
 });
 
@@ -1659,9 +1730,12 @@ void WebInterface::getSystemStatus(JsonDocument& doc) {
     doc["config"]["maxSpeed"] = config->defaultProfile.maxSpeed;
     doc["config"]["acceleration"] = config->defaultProfile.acceleration;
     doc["config"]["homingSpeed"] = config->homingSpeed;
+    doc["config"]["jerk"] = config->defaultProfile.jerk;
+    doc["config"]["emergencyDeceleration"] = config->emergencyDeceleration;
     doc["config"]["dmxChannel"] = config->dmxStartChannel;
     doc["config"]["dmxScale"] = config->dmxScale;
     doc["config"]["dmxOffset"] = config->dmxOffset;
+    doc["config"]["dmxTimeout"] = config->dmxTimeout;
     doc["config"]["minPosition"] = config->minPosition;
     doc["config"]["maxPosition"] = config->maxPosition;
     doc["config"]["homePosition"] = config->homePosition;
@@ -1687,6 +1761,7 @@ void WebInterface::getSystemConfig(JsonDocument& doc) {
     doc["motion"]["maxSpeed"] = config->defaultProfile.maxSpeed;
     doc["motion"]["acceleration"] = config->defaultProfile.acceleration;
     doc["motion"]["homingSpeed"] = config->homingSpeed;
+    doc["motion"]["jerk"] = config->defaultProfile.jerk;
     
     // Position limits
     doc["limits"]["min"] = config->minPosition;
@@ -1697,6 +1772,10 @@ void WebInterface::getSystemConfig(JsonDocument& doc) {
     doc["dmx"]["channel"] = config->dmxStartChannel;
     doc["dmx"]["scale"] = config->dmxScale;
     doc["dmx"]["offset"] = config->dmxOffset;
+    doc["dmx"]["timeout"] = config->dmxTimeout;
+    
+    // Safety config
+    doc["safety"]["emergencyDeceleration"] = config->emergencyDeceleration;
 }
 
 void WebInterface::getSystemInfo(JsonDocument& doc) {
@@ -1774,6 +1853,18 @@ bool WebInterface::updateConfiguration(const JsonDocument& params) {
         Serial.printf("[WebInterface] Setting homingSpeed to: %.1f\n", speed);
     }
     
+    if (params.containsKey("jerk")) {
+        float jerk = params["jerk"];
+        config->defaultProfile.jerk = jerk;
+        Serial.printf("[WebInterface] Setting jerk to: %.1f\n", jerk);
+    }
+    
+    if (params.containsKey("emergencyDeceleration")) {
+        float emergDecel = params["emergencyDeceleration"];
+        config->emergencyDeceleration = emergDecel;
+        Serial.printf("[WebInterface] Setting emergencyDeceleration to: %.1f\n", emergDecel);
+    }
+    
     // Update DMX parameters
     if (params.containsKey("dmxChannel")) {
         config->dmxStartChannel = params["dmxChannel"];
@@ -1788,6 +1879,12 @@ bool WebInterface::updateConfiguration(const JsonDocument& params) {
     if (params.containsKey("dmxOffset")) {
         config->dmxOffset = params["dmxOffset"];
         Serial.printf("[WebInterface] Setting dmxOffset to: %d\n", config->dmxOffset);
+    }
+    
+    if (params.containsKey("dmxTimeout")) {
+        uint32_t timeout = params["dmxTimeout"];
+        config->dmxTimeout = timeout;
+        Serial.printf("[WebInterface] Setting dmxTimeout to: %u\n", timeout);
     }
     
     // Update position limits (these are usually set by homing, but allow manual override)

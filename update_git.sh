@@ -6,6 +6,7 @@
 echo "============================================"
 echo "SkullStepperV4 Git Repository Update"
 echo "============================================"
+echo ""
 
 # Navigate to the project directory (adjust path as needed)
 cd /Users/timrosener/Documents/Arduino/SkullStepperV4
@@ -26,64 +27,63 @@ echo -e "\nAdding all changed files..."
 git add .
 
 # Create a comprehensive commit message
-COMMIT_MESSAGE="feat: Add system information display to WebInterface
+COMMIT_MESSAGE="feat: Add advanced configuration parameters to WebInterface
 
 ## WebInterface Enhancement (2025-02-02):
 
-Added comprehensive system information display panel to the web interface, completing Section 2 of the missing features list.
+Completed Section 3 (Advanced Configuration) by adding all missing advanced parameters to the web interface.
 
 ## Implementation Details:
 
-### New System Information Panel:
-- **Version Display**: Shows firmware version (4.1.0)
-- **Hardware Info**: Displays ESP32-S3-WROOM-1 model
-- **Uptime Monitor**: Real-time uptime with human-readable formatting (days/hours/minutes/seconds)
-- **Memory Statistics**: Free heap memory display with KB/MB formatting
-- **Task Monitoring**: FreeRTOS task stack high water mark for broadcast task
-- **Connection Status**: Active WebSocket clients count with max limit display
+### New Advanced Configuration Tab:
+- **Jerk Control**: Range slider (0-50000 steps/sec³) with live value display
+- **Emergency Deceleration**: Range slider (100-50000 steps/sec²) for emergency stop rate
+- **DMX Timeout**: Number input (100-60000 ms) for signal loss detection
+- **Parameter Help Text**: Added descriptive info for each advanced parameter
 
 ### Technical Implementation:
-- Extended getSystemStatus() to include systemInfo object in WebSocket updates
-- Added formatUptime() helper function for time formatting
-- Added formatMemory() helper function for memory size formatting
-- Created new CSS classes: .info-grid and .info-item matching existing design
-- Updates delivered via existing 10Hz WebSocket infrastructure
-- Thread-safe data access using established patterns
+- Added new "Advanced" tab to configuration section
+- Extended JavaScript event handlers for new sliders with touch support
+- Updated applyConfig() to include jerk, emergencyDeceleration, and dmxTimeout
+- Enhanced getSystemStatus() to send all parameters via WebSocket
+- Modified updateConfiguration() to handle new parameter updates
+- Added .param-info CSS class for parameter descriptions
+
+### Backend Integration:
+- All parameters properly saved to flash via SystemConfigMgr
+- Thread-safe configuration updates using existing patterns
+- Full integration with motion control system
+- Maintains compatibility with serial interface
 
 ### Code Changes:
-- **WebInterface.cpp**: 
-  - Added HTML structure for system info panel
-  - Added CSS styling for info grid layout
-  - Added JavaScript helper functions and UI update logic
-  - Extended getSystemStatus() with system information
-  - Updated getSystemInfo() with additional details
-- **README.md**: 
-  - Updated WebInterface features list
-  - Corrected 'Async Web Server' to 'Built-in Web Server'
-  - Added WebSocket port 81 specification
-  - Added system info display to latest enhancements
-- **webfuncstat.md**: 
-  - Marked Section 2 (Information Display) as complete ✅
-  - Listed all implemented info display features
+- **WebInterface.cpp**:
+  - Added HTML for Advanced tab with three new controls
+  - Added CSS styling for parameter info text
+  - Extended JavaScript for slider interactions
+  - Updated C++ handlers for new parameters
+  - Enhanced configuration structures
+- **webfuncstat.md**:
+  - Marked Section 3 (Advanced Configuration) as complete ✅
+  - Updated feature comparison documentation
 
 ## Architecture Compliance:
 
-- ✅ Follows modular architecture - no direct module calls
-- ✅ Uses thread-safe data access patterns
-- ✅ Maintains dual-core architecture principles
-- ✅ No functionality removed - only enhancements added
-- ✅ Documentation updated to reflect changes
-- ✅ Consistent with existing UI/UX design
+- ✅ No direct module calls - uses SystemConfigMgr interface
+- ✅ Thread-safe access via existing configuration system
+- ✅ No functionality removed - only enhancements
+- ✅ Documentation fully updated
+- ✅ Consistent UI/UX with existing design
+- ✅ Mobile-responsive implementation
 
-## Testing Notes:
+## User Benefits:
 
-System information panel tested and working:
-- Uptime increments correctly in real-time
-- Memory usage reflects actual ESP32 heap status
-- Task stack monitoring provides useful debugging info
-- All formatting functions handle edge cases properly
+- Complete control over motion smoothness via jerk limitation
+- Configurable emergency stop behavior for safety
+- DMX timeout adjustment for different DMX sources
+- Parameter validation and range enforcement
+- Persistent storage across power cycles
 
-This enhancement improves system monitoring capabilities while maintaining the clean, professional interface design."
+The WebInterface now provides access to ALL system parameters, matching the capabilities of the SerialInterface for advanced users."
 
 # Commit with the comprehensive message
 echo -e "\nCommitting changes..."
