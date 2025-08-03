@@ -335,14 +335,21 @@ static void updateHomingSequence() {
                 g_maxPosition = g_stepper->getCurrentPosition() - POSITION_MARGIN;
                 g_positionLimitsValid = true;
                 
-                // Move to center of range
-                int32_t centerPosition = (g_minPosition + g_maxPosition) / 2;
+                // Calculate home position based on configured percentage
+                SystemConfig* config = SystemConfigMgr::getConfig();
+                float homePercent = config ? config->homePositionPercent : 50.0f;
+                int32_t range = g_maxPosition - g_minPosition;
+                int32_t homePosition = g_minPosition + (int32_t)((range * homePercent) / 100.0f);
+                
+                // Move to configured home position
                 g_stepper->setSpeedInHz(g_currentProfile.maxSpeed);
-                g_stepper->moveTo(centerPosition);
+                g_stepper->moveTo(homePosition);
                 g_homingState = HomingState::MOVING_TO_CENTER;
                 
                 Serial.printf("StepperController: Operating range: %d to %d steps\n", 
                              g_minPosition, g_maxPosition);
+                Serial.printf("StepperController: Moving to home position: %d (%.1f%% of range)\n",
+                             homePosition, homePercent);
             }
             break;
             
@@ -362,6 +369,7 @@ static void updateHomingSequence() {
                 Serial.println("StepperController: Limit faults cleared.");
                 Serial.printf("StepperController: Position range: %d to %d (%d total steps)\n",
                              g_minPosition, g_maxPosition, g_maxPosition - g_minPosition);
+                Serial.printf("StepperController: Final position: %d\n", g_stepper->getCurrentPosition());
                 Serial.printf("StepperController: Homing took %lu ms\n", homingTime);
             }
             break;

@@ -708,6 +708,7 @@ Position Tracking          ALARM Signal
 - Complete web interface with real-time control and monitoring
 - All motion parameters user-configurable via serial or web
 - **Fixed**: Web interface stress test now runs continuously (matches serial interface)
+- **New**: Configurable home position as percentage of range (survives reboot)
 - Ready for production deployment!
 
 **Recent Development (2025-01-31):**
@@ -963,6 +964,7 @@ attachInterrupt(digitalPinToInterrupt(RIGHT_LIMIT_PIN), rightLimitISR, FALLING);
 
 ### Motion Commands:
 - `MOVE <position>` - Move to absolute position
+- `MOVEHOME` - Move to configured home position (percentage of range)
 - `HOME` - Run auto-range homing sequence
 - `STOP` - Stop with deceleration
 - `ESTOP` - Emergency stop (immediate)
@@ -1064,5 +1066,8 @@ Use `PARAMS` command for full parameter details with ranges and defaults.
 - **Complete Documentation**: All features documented with examples
 - **Fixed Web Interface Stress Test**: TEST button now runs continuous stress test between 10% and 90% of range until stopped (matching serial interface behavior)
 - **Renamed TEST2**: Web interface TEST2 button renamed to "RANDOM MOVES" for better clarity
+- **Enhanced Limits Tab**: Position limits configuration now requires homing first, displays detected physical range, and validates entries against hardware limits
+- **Configurable Home Position**: Home position is now configurable as a percentage of detected range (0-100%), ensuring it's always within bounds and adapts to mechanical installation
+- **Move to Home Button**: Added convenient "MOVE TO HOME" button in web interface that moves to the configured home position with a single click
 
 The SkullStepperV4 system is now a complete, production-ready stepper control solution suitable for professional installations requiring reliable, safe, and user-friendly operation.

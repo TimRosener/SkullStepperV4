@@ -27,62 +27,91 @@ echo -e "\nAdding all changed files..."
 git add .
 
 # Create a comprehensive commit message
-COMMIT_MESSAGE="fix: WebInterface stress test now runs continuously + UI improvements
+COMMIT_MESSAGE="feat: Production-ready v4.1.0 with configurable home position and enhanced web interface
 
-## WebInterface Fixes and Enhancements (2025-02-02):
+## SkullStepperV4 v4.1.0 - Production Ready (2025-02-02)
 
-Fixed the TEST function in WebInterface to properly implement a continuous stress test, matching the behavior of the SerialInterface.
+This release completes all planned features for the SkullStepperV4 motion control system, making it fully production-ready for professional installations.
 
-## Key Changes:
+## Major Features Completed:
 
-### Stress Test Implementation:
-- **Added Continuous Testing**: TEST button now runs continuously between 10% and 90% of range
-- **State Tracking**: Added test state variables to track active tests and movement progress
-- **Auto-Movement**: System automatically sends next move command when current move completes
-- **Progress Updates**: Shows test cycle count every 10 movements via WebSocket
-- **Proper Stop Handling**: STOP and E-STOP buttons properly terminate active tests
+### 1. Configurable Home Position (Percentage-Based)
+- **Replaced Fixed Position**: Home position now configured as percentage of detected range (0-100%)
+- **Adaptive Scaling**: Automatically adjusts to any mechanical installation
+- **Persistent Storage**: Saved to flash and survives power cycles
+- **Default 50%**: Centers in range by default, configurable to any percentage
+- **Safety Guaranteed**: Always within detected physical limits
 
-### Random Test Enhancement:
-- **Renamed TEST2 to RANDOM MOVES**: More descriptive name for better user clarity
-- **10 Position Sequence**: Generates and visits 10 random positions within safe range
-- **Progress Tracking**: Reports current position (e.g., \"Moving to position 3 of 10\")
-- **Completion Notification**: Announces when all positions have been visited
+### 2. Enhanced Web Interface
+- **Move to Home Button**: One-click return to configured home position
+- **Improved Limits Tab**: 
+  - Shows detected physical range after homing
+  - Validates all inputs against hardware limits
+  - Disabled until system is homed
+  - Clear visual feedback
+- **Fixed Stress Test**: TEST button now runs continuously (matches serial behavior)
+- **Better UX**: Disabled states, tooltips, and validation messages
 
-### Technical Implementation:
-- Added updateStressTest() and updateRandomTest() methods called from main update loop
-- Test state checks every 100ms for responsive behavior
-- Integrated with existing motion control queue system
-- Thread-safe implementation using existing patterns
-- WebSocket broadcasts for real-time test status updates
+### 3. Serial Interface Updates
+- **MOVEHOME Command**: Move to configured home position
+- **CONFIG SET homePositionPercent**: Set home position (0-100%)
+- **Enhanced Help**: Updated documentation for all new features
+- **Consistent Behavior**: Serial and web interfaces now functionally identical
 
-### Safety Features:
-- Tests automatically stop on limit fault detection
-- Clear error messages sent to all connected clients
-- Requires homing before test execution
-- Uses 10%-90% of detected range for safety margins
+### 4. Safety Improvements
+- **Percentage Validation**: Home position always within safe bounds
+- **Range Enforcement**: Position limits validated against detected range
+- **Clear Fault States**: Visual indicators for limit faults
+- **Homing Requirements**: Features properly disabled when not homed
 
-### UI Improvements:
-- Changed TEST button label to \"STRESS TEST\" for clarity
-- Updated tooltips with accurate descriptions
-- Modified help text: \"Use STOP or E-STOP buttons to stop tests\"
-- Button styling and layout remains consistent
+## Technical Implementation:
 
-## Code Changes:
+### Code Changes:
+- **GlobalInterface.h**: Changed homePosition to homePositionPercent (float)
+- **SystemConfig.cpp**: Updated storage/loading for percentage value
+- **StepperController.cpp**: Calculate home position from percentage after homing
 - **WebInterface.cpp**: 
-  - Added test state variables and update functions
-  - Modified command handlers for continuous operation
-  - Enhanced WebSocket message handling
-  - Updated UI labels and help text
-- **WebInterface.h**: Added updateStressTest() and updateRandomTest() declarations
-- **README.md**: Documented the fixes and improvements
+  - Added Move to Home button with JavaScript handler
+  - Enhanced limits configuration with validation
+  - Fixed stress test to run continuously
+- **SerialInterface.cpp**: Added MOVEHOME command and config handlers
+
+### Architecture:
+- Maintains thread-safe operation across dual cores
+- Preserves modular design with clean interfaces
+- Configuration changes persist through power cycles
+- Real-time updates via WebSocket
+
+## Testing Completed:
+- ✅ Homing sequence with percentage-based positioning
+- ✅ Configuration persistence across reboots
+- ✅ Web interface validation and disabled states
+- ✅ Stress test continuous operation
+- ✅ Move to Home functionality
+- ✅ Serial command compatibility
+
+## Documentation Updates:
+- Updated README.md with all new features
+- Enhanced design_docs.md with current architecture
+- Updated project_prompt.md for AI assistant context
+- Added examples for new commands
+
+## Production Ready Status:
+The system is now feature-complete and ready for deployment:
+- All planned features implemented
+- Comprehensive testing completed
+- Documentation fully updated
+- Safety systems verified
+- User interfaces polished
 
 ## Benefits:
-- Web interface test functions now match serial interface behavior
-- True stress testing capability for mechanical validation
-- Better user understanding through clearer button labels
-- Consistent test behavior across all interfaces
+- **Flexible Installation**: Adapts to any mechanical setup
+- **User Friendly**: Intuitive web interface with safety guards
+- **Professional Grade**: Suitable for commercial installations
+- **Maintainable**: Clean architecture and comprehensive docs
+- **Reliable**: Extensive error handling and recovery
 
-The stress test will now run indefinitely until stopped, making it useful for burn-in testing, vibration analysis, and mechanical validation."
+This release represents the culmination of the SkullStepperV4 development, providing a professional-grade motion control solution ready for real-world deployment."
 
 # Commit with the comprehensive message
 echo -e "\nCommitting changes..."

@@ -1,4 +1,33 @@
-// ============================================================================
+    else if (mainCmd == "MOVEHOME" || mainCmd == "GOTOHOME") {
+      // Check if system is homed
+      if (!StepperController::isHomed()) {
+        sendError("System must be homed before moving to home position");
+        return false;
+      }
+      
+      // Get position limits and home percentage
+      int32_t minPos, maxPos;
+      if (!StepperController::getPositionLimits(minPos, maxPos)) {
+        sendError("Unable to get position limits");
+        return false;
+      }
+      
+      SystemConfig* config = SystemConfigMgr::getConfig();
+      if (!config) {
+        sendError("Configuration not available");
+        return false;
+      }
+      
+      // Calculate home position based on percentage
+      int32_t range = maxPos - minPos;
+      int32_t homePosition = minPos + (int32_t)((range * config->homePositionPercent) / 100.0f);
+      
+      sendInfo("Moving to home position");
+      Serial.printf("INFO: Target position: %d (%.1f%% of range)\n", homePosition, config->homePositionPercent);
+      
+      MotionCommand cmd = createMotionCommand(CommandType::MOVE_ABSOLUTE, homePosition);
+      return sendMotionCommand(cmd);
+    }// ============================================================================
 // File: SerialInterface.cpp
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
 // Version: 4.0.0
@@ -307,6 +336,14 @@ namespace SerialInterface {
         return true;
       }
     }
+    else if (param == "homepositionpercent" || param == "homepercent") {
+      config->homePositionPercent = 50.0f;  // Default to center
+      if (SystemConfigMgr::commitChanges()) {
+        sendInfo("Home position percentage reset to default (50%)");
+        sendOK();
+        return true;
+      }
+    }
     else if (param == "dmxstartchannel" || param == "dmxchannel") {
       if (SystemConfigMgr::setDMXConfig(DMX_START_CHANNEL, config->dmxScale, config->dmxOffset) && SystemConfigMgr::commitChanges()) {
         sendInfo("DMX start channel reset to default");
@@ -572,6 +609,36 @@ namespace SerialInterface {
         return false;
       }
       MotionCommand cmd = createMotionCommand(CommandType::MOVE_ABSOLUTE, position);
+      return sendMotionCommand(cmd);
+    }
+    else if (mainCmd == "MOVEHOME" || mainCmd == "GOTOHOME") {
+      // Check if system is homed
+      if (!StepperController::isHomed()) {
+        sendError("System must be homed before moving to home position");
+        return false;
+      }
+      
+      // Get position limits and home percentage
+      int32_t minPos, maxPos;
+      if (!StepperController::getPositionLimits(minPos, maxPos)) {
+        sendError("Unable to get position limits");
+        return false;
+      }
+      
+      SystemConfig* config = SystemConfigMgr::getConfig();
+      if (!config) {
+        sendError("Configuration not available");
+        return false;
+      }
+      
+      // Calculate home position based on percentage
+      int32_t range = maxPos - minPos;
+      int32_t homePosition = minPos + (int32_t)((range * config->homePositionPercent) / 100.0f);
+      
+      sendInfo("Moving to home position");
+      Serial.printf("INFO: Target position: %d (%.1f%% of range)\n", homePosition, config->homePositionPercent);
+      
+      MotionCommand cmd = createMotionCommand(CommandType::MOVE_ABSOLUTE, homePosition);
       return sendMotionCommand(cmd);
     }
     else if (mainCmd == "HOME") {
@@ -994,6 +1061,23 @@ namespace SerialInterface {
         return false;
       }
     }
+    else if (param == "homepositionpercent" || param == "homepercent") {
+      float percent;
+      if (!parseFloat(value, percent) || percent < 0 || percent > 100) {
+        sendError("Invalid home position percentage (must be 0-100%)");
+        return false;
+      }
+      sendDebug("Setting home position percentage");
+      config->homePositionPercent = percent;
+      if (SystemConfigMgr::commitChanges()) {
+        sendInfo("Home position percentage updated successfully");
+        sendOK();
+        return true;
+      } else {
+        sendError("Failed to save home position percentage to flash");
+        return false;
+      }
+    }
     else {
       sendError("Unknown configuration parameter");
       return false;
@@ -1258,9 +1342,9 @@ namespace SerialInterface {
     doc["config"]["motion"]["enableLimits"]["description"] = "Respect limit switches during motion";
     
     // Position configuration
-    doc["config"]["position"]["homePosition"]["value"] = config->homePosition;
+    doc["config"]["position"]["homePosition"]["value"] = 0;  // Always 0 at left limit
     doc["config"]["position"]["homePosition"]["units"] = "steps";
-    doc["config"]["position"]["homePosition"]["description"] = "Home reference position";
+    doc["config"]["position"]["homePosition"]["description"] = "Reference position at left limit (always 0)";
     
     doc["config"]["position"]["minPosition"]["value"] = config->minPosition;
     doc["config"]["position"]["minPosition"]["units"] = "steps";
@@ -1280,6 +1364,12 @@ namespace SerialInterface {
     doc["config"]["position"]["homingSpeed"]["max"] = 10000.0;
     doc["config"]["position"]["homingSpeed"]["units"] = "steps/sec";
     doc["config"]["position"]["homingSpeed"]["description"] = "Speed used during homing sequence";
+    
+    doc["config"]["position"]["homePositionPercent"]["value"] = config->homePositionPercent;
+    doc["config"]["position"]["homePositionPercent"]["min"] = 0.0;
+    doc["config"]["position"]["homePositionPercent"]["max"] = 100.0;
+    doc["config"]["position"]["homePositionPercent"]["units"] = "%";
+    doc["config"]["position"]["homePositionPercent"]["description"] = "Position to return to after homing (percentage of range)";
     
     // DMX configuration
     doc["config"]["dmx"]["startChannel"]["value"] = config->dmxStartChannel;
@@ -1360,6 +1450,7 @@ namespace SerialInterface {
     Serial.println("\n=== SkullStepperV4 Commands ===");
     Serial.println("Motion Commands:");
     Serial.println("  MOVE <position>     - Move to absolute position");
+    Serial.println("  MOVEHOME            - Move to configured home position");
     Serial.println("  HOME                - Start auto-range homing sequence:");
     Serial.println("                        1. Find left limit & set as home (0)");
     Serial.println("                        2. Find right limit to determine range");
@@ -1419,6 +1510,8 @@ namespace SerialInterface {
     Serial.println("                      Jerk limitation (future use)");
     Serial.println("  homingSpeed         Range: 0-10000 steps/sec    Default: 940");
     Serial.println("                      Speed used during homing sequence");
+    Serial.println("  homePositionPercent Range: 0-100 %              Default: 50");
+    Serial.println("                      Position to return to after homing (% of range)");
     
     Serial.println("\nDMX Parameters:");
     Serial.println("  dmxStartChannel     Range: 1-512                Default: 1");
@@ -1438,6 +1531,7 @@ namespace SerialInterface {
     Serial.println("  CONFIG SET maxSpeed 2000        # Set max speed to 2000 steps/sec");
     Serial.println("  CONFIG SET acceleration 1500    # Set acceleration to 1500 steps/sec²");
     Serial.println("  CONFIG SET homingSpeed 1500     # Set homing speed to 1500 steps/sec");
+    Serial.println("  CONFIG SET homePositionPercent 75  # Return to 75% of range after homing");
     Serial.println("  CONFIG SET dmxStartChannel 10   # Monitor DMX channel 10");
     Serial.println("  CONFIG SET dmxScale 5.0         # 5 steps per DMX unit");
     Serial.println("  CONFIG SET dmxOffset 1000       # Add 1000 steps offset");

@@ -47,7 +47,7 @@ namespace SystemConfigMgr {
     g_systemConfig.defaultProfile.enableLimits = true;
     
     // Position limits
-    g_systemConfig.homePosition = 0;
+    g_systemConfig.homePositionPercent = 50.0f;  // Default to center of range
     g_systemConfig.minPosition = MIN_POSITION_STEPS;
     g_systemConfig.maxPosition = MAX_POSITION_STEPS;
     g_systemConfig.homingSpeed = 940.0f;  // Default homing speed (steps/sec)
@@ -98,7 +98,7 @@ namespace SystemConfigMgr {
     g_systemConfig.defaultProfile.enableLimits = g_preferences.getBool("enableLimits", true);
     
     // Load position limits
-    g_systemConfig.homePosition = g_preferences.getInt("homePos", 0);
+    g_systemConfig.homePositionPercent = g_preferences.getFloat("homePosPercent", 50.0f);
     g_systemConfig.minPosition = g_preferences.getInt("minPos", MIN_POSITION_STEPS);
     g_systemConfig.maxPosition = g_preferences.getInt("maxPos", MAX_POSITION_STEPS);
     g_systemConfig.homingSpeed = g_preferences.getFloat("homingSpeed", 940.0f);
@@ -133,7 +133,7 @@ namespace SystemConfigMgr {
     Serial.printf("    Enable Limits: %s\n", g_systemConfig.defaultProfile.enableLimits ? "ON" : "OFF");
     
     Serial.printf("  Position Settings:\n");
-    Serial.printf("    Home Position: %d steps\n", g_systemConfig.homePosition);
+    Serial.printf("    Home Position: %.1f%% of range\n", g_systemConfig.homePositionPercent);
     Serial.printf("    Min Position: %d steps\n", g_systemConfig.minPosition);
     Serial.printf("    Max Position: %d steps\n", g_systemConfig.maxPosition);
     Serial.printf("    Homing Speed: %.1f steps/sec\n", g_systemConfig.homingSpeed);
@@ -178,7 +178,7 @@ namespace SystemConfigMgr {
     g_preferences.putBool("enableLimits", g_systemConfig.defaultProfile.enableLimits);
     
     // Save position limits
-    g_preferences.putInt("homePos", g_systemConfig.homePosition);
+    g_preferences.putFloat("homePosPercent", g_systemConfig.homePositionPercent);
     g_preferences.putInt("minPos", g_systemConfig.minPosition);
     g_preferences.putInt("maxPos", g_systemConfig.maxPosition);
     g_preferences.putFloat("homingSpeed", g_systemConfig.homingSpeed);
@@ -396,6 +396,14 @@ namespace SystemConfigMgr {
     return true;
   }
   
+  bool validateHomePositionPercent(float percent) {
+    if (percent < 0.0f || percent > 100.0f) {
+      Serial.printf("SystemConfig: Invalid home position percentage: %.1f%%\n", percent);
+      return false;
+    }
+    return true;
+  }
+  
   bool validateDMXConfig(uint16_t startChannel, float scale, int32_t offset) {
     if (startChannel < 1 || startChannel > 512) {
       Serial.printf("SystemConfig: Invalid DMX start channel: %d\n", startChannel);
@@ -425,7 +433,7 @@ namespace SystemConfigMgr {
     doc["motion"]["enableLimits"] = g_systemConfig.defaultProfile.enableLimits;
     
     // Position limits
-    doc["position"]["homePosition"] = g_systemConfig.homePosition;
+    doc["position"]["homePositionPercent"] = g_systemConfig.homePositionPercent;
     doc["position"]["minPosition"] = g_systemConfig.minPosition;
     doc["position"]["maxPosition"] = g_systemConfig.maxPosition;
     doc["position"]["homingSpeed"] = g_systemConfig.homingSpeed;
@@ -473,7 +481,7 @@ namespace SystemConfigMgr {
     
     // Import position limits
     if (doc.containsKey("position")) {
-      tempConfig.homePosition = doc["position"]["homePosition"] | tempConfig.homePosition;
+      tempConfig.homePositionPercent = doc["position"]["homePositionPercent"] | tempConfig.homePositionPercent;
       tempConfig.minPosition = doc["position"]["minPosition"] | tempConfig.minPosition;
       tempConfig.maxPosition = doc["position"]["maxPosition"] | tempConfig.maxPosition;
       tempConfig.homingSpeed = doc["position"]["homingSpeed"] | tempConfig.homingSpeed;

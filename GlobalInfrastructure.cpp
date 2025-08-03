@@ -179,7 +179,7 @@ bool initializeGlobalInfrastructure() {
         g_systemConfig.defaultProfile.enableLimits = true;
         
         // Position limits
-        g_systemConfig.homePosition = 0;
+        g_systemConfig.homePositionPercent = 50.0f;
         g_systemConfig.minPosition = MIN_POSITION_STEPS;
         g_systemConfig.maxPosition = MAX_POSITION_STEPS;
         

@@ -88,6 +88,9 @@ String WebInterface::getIndexHTML() {
                     <input type="number" id="positionInput" placeholder="Target position" step="10">
                     <button class="btn btn-primary" onclick="moveToPosition()">MOVE</button>
                 </div>
+                <div style="margin-top: 10px; text-align: center;">
+                    <button class="btn btn-success" onclick="moveToHome()" title="Move to configured home position">MOVE TO HOME</button>
+                </div>
             </div>
             
             <div class="jog-control">
@@ -193,17 +196,35 @@ String WebInterface::getIndexHTML() {
             <!-- Position Limits Tab -->
             <div id="limits-tab" class="config-tab">
                 <h3>Position Limits</h3>
-                <div class="config-item">
-                    <label for="minPosition">Minimum Position:</label>
-                    <input type="number" id="minPosition" step="10" placeholder="Steps">
+                <div id="limitsNotHomed" class="homing-notice" style="display:none;">
+                    <p style="color: #ff6600; font-weight: bold; text-align: center; padding: 20px; background: rgba(255,102,0,0.1); border-radius: 5px;">
+                        ⚠️ System must be homed before position limits can be configured.
+                        <br>Use the HOME button to detect physical travel limits.
+                    </p>
                 </div>
-                <div class="config-item">
-                    <label for="maxPosition">Maximum Position:</label>
-                    <input type="number" id="maxPosition" step="10" placeholder="Steps">
-                </div>
-                <div class="config-item">
-                    <label for="homePosition">Home Position:</label>
-                    <input type="number" id="homePosition" step="1" placeholder="Steps">
+                <div id="limitsContent" style="display:none;">
+                    <div class="limits-info" style="background: rgba(0,212,255,0.1); padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+                        <p style="margin: 0 0 10px 0;"><strong>Detected Physical Range:</strong></p>
+                        <p style="margin: 0;">Min: <span id="detectedMin" style="color: #00d4ff; font-weight: bold;">--</span> steps</p>
+                        <p style="margin: 0;">Max: <span id="detectedMax" style="color: #00d4ff; font-weight: bold;">--</span> steps</p>
+                        <p style="margin: 10px 0 0 0;">Total Range: <span id="detectedRange" style="color: #00d4ff; font-weight: bold;">--</span> steps</p>
+                    </div>
+                    <div class="config-item">
+                        <label for="minPosition">Minimum Position:</label>
+                        <input type="number" id="minPosition" step="10" placeholder="Steps">
+                        <small class="param-info">Must be ≥ <span id="minPosLimit">--</span> (detected minimum)</small>
+                    </div>
+                    <div class="config-item">
+                        <label for="maxPosition">Maximum Position:</label>
+                        <input type="number" id="maxPosition" step="10" placeholder="Steps">
+                        <small class="param-info">Must be ≤ <span id="maxPosLimit">--</span> (detected maximum)</small>
+                    </div>
+                    <div class="config-item">
+                        <label for="homePositionPercent">Home Position:</label>
+                        <input type="range" id="homePositionPercent" min="0" max="100" step="5" value="50">
+                        <span id="homePositionPercentValue">50</span>% of range
+                        <small class="param-info">Position to return to after homing (0% = left limit, 100% = right limit)</small>
+                    </div>
                 </div>
             </div>
             
@@ -417,6 +438,10 @@ h1 {
     color: var(--bg-color);
 }
 
+.btn-success:hover {
+    background: #00cc66;
+}
+
 .btn-warning {
     background: var(--warning-color);
     color: var(--bg-color);
@@ -603,6 +628,7 @@ let ws = null;
 let wsReconnectTimer = null;
 let motorEnabled = false;
 let isAdjustingSliders = false;  // Track if user is adjusting sliders
+let detectedLimits = null;  // Store detected position limits from homing
 
 // WebSocket connection management
 function connectWebSocket() {
@@ -746,6 +772,24 @@ function updateUI(data) {
         }
     }
     
+    // Handle position limits display
+    if (data.positionLimits) {
+        if (data.positionLimits.valid) {
+            // Store detected limits
+            detectedLimits = {
+                min: data.positionLimits.min,
+                max: data.positionLimits.max,
+                range: data.positionLimits.range
+            };
+            
+            // Update limits display
+            updateLimitsDisplay();
+        } else {
+            detectedLimits = null;
+            updateLimitsDisplay();
+        }
+    }
+    
     // Only update config values if user is not actively adjusting them
     if (data.config && !isAdjustingSliders) {
         // Motion parameters
@@ -791,8 +835,9 @@ function updateUI(data) {
         if (data.config.maxPosition !== undefined) {
             document.getElementById('maxPosition').value = data.config.maxPosition;
         }
-        if (data.config.homePosition !== undefined) {
-            document.getElementById('homePosition').value = data.config.homePosition;
+        if (data.config.homePositionPercent !== undefined) {
+            document.getElementById('homePositionPercent').value = data.config.homePositionPercent;
+            document.getElementById('homePositionPercentValue').textContent = data.config.homePositionPercent;
         }
     }
 }
@@ -837,11 +882,39 @@ function moveToPosition() {
     }
 }
 
+function moveToHome() {
+    // Check if system is homed and we have detected limits
+    if (!detectedLimits) {
+        alert('System must be homed before moving to home position');
+        return;
+    }
+    
+    // Get the configured home position percentage
+    const homePercent = parseFloat(document.getElementById('homePositionPercent').value);
+    
+    // Calculate the actual position based on percentage
+    const range = detectedLimits.max - detectedLimits.min;
+    const homePosition = detectedLimits.min + Math.floor((range * homePercent) / 100);
+    
+    // Send move command to calculated home position
+    sendCommand('move', { position: homePosition });
+    
+    // Optional: Show feedback
+    console.log(`Moving to home position: ${homePosition} (${homePercent}% of range)`);
+}
+
 function jog(steps) {
     sendCommand('jog', { steps: steps });
 }
 
 function applyConfig() {
+    // Validate position limits if they're being changed
+    const minPosInput = document.getElementById('minPosition').value;
+    const maxPosInput = document.getElementById('maxPosition').value;
+    if ((minPosInput || maxPosInput) && !validatePositionLimits()) {
+        return; // Validation failed
+    }
+    
     // Gather all configuration values
     const config = {
         maxSpeed: parseInt(document.getElementById('maxSpeed').value),
@@ -855,7 +928,7 @@ function applyConfig() {
         dmxTimeout: parseInt(document.getElementById('dmxTimeout').value),
         minPosition: parseInt(document.getElementById('minPosition').value),
         maxPosition: parseInt(document.getElementById('maxPosition').value),
-        homePosition: parseInt(document.getElementById('homePosition').value)
+        homePositionPercent: parseFloat(document.getElementById('homePositionPercent').value)
     };
     
     // Remove any NaN values
@@ -901,9 +974,19 @@ function showConfigTab(tabName) {
     // Show selected tab
     document.getElementById(tabName + '-tab').classList.add('active');
     event.target.classList.add('active');
+    
+    // Update limits display when limits tab is selected
+    if (tabName === 'limits') {
+        updateLimitsDisplay();
+    }
 }
 
 // Initialize sliders with interaction tracking
+document.getElementById('homePositionPercent').addEventListener('input', (e) => {
+    isAdjustingSliders = true;
+    document.getElementById('homePositionPercentValue').textContent = e.target.value;
+});
+
 document.getElementById('maxSpeed').addEventListener('input', (e) => {
     isAdjustingSliders = true;
     document.getElementById('maxSpeedValue').textContent = e.target.value;
@@ -988,6 +1071,74 @@ document.getElementById('positionInput').addEventListener('keypress', (e) => {
     }
 });
 
+// Update limits display based on homing status
+function updateLimitsDisplay() {
+    const limitsNotHomed = document.getElementById('limitsNotHomed');
+    const limitsContent = document.getElementById('limitsContent');
+    const minInput = document.getElementById('minPosition');
+    const maxInput = document.getElementById('maxPosition');
+    
+    if (detectedLimits) {
+        // System is homed - show limits controls
+        limitsNotHomed.style.display = 'none';
+        limitsContent.style.display = 'block';
+        
+        // Update detected values display
+        document.getElementById('detectedMin').textContent = detectedLimits.min;
+        document.getElementById('detectedMax').textContent = detectedLimits.max;
+        document.getElementById('detectedRange').textContent = detectedLimits.range;
+        document.getElementById('minPosLimit').textContent = detectedLimits.min;
+        document.getElementById('maxPosLimit').textContent = detectedLimits.max;
+        
+        // Set input constraints
+        minInput.min = detectedLimits.min;
+        minInput.max = detectedLimits.max - 100; // Must leave room for movement
+        maxInput.min = detectedLimits.min + 100; // Must leave room for movement
+        maxInput.max = detectedLimits.max;
+        
+        // Enable inputs
+        minInput.disabled = false;
+        maxInput.disabled = false;
+    } else {
+        // System not homed - show warning
+        limitsNotHomed.style.display = 'block';
+        limitsContent.style.display = 'none';
+        
+        // Disable inputs
+        minInput.disabled = true;
+        maxInput.disabled = true;
+    }
+}
+
+// Validate position limits before applying
+function validatePositionLimits() {
+    if (!detectedLimits) {
+        alert('System must be homed before setting position limits');
+        return false;
+    }
+    
+    const minPos = parseInt(document.getElementById('minPosition').value);
+    const maxPos = parseInt(document.getElementById('maxPosition').value);
+    
+    if (!isNaN(minPos) && !isNaN(maxPos)) {
+        // Check against detected limits
+        if (minPos < detectedLimits.min) {
+            alert(`Minimum position cannot be less than detected limit (${detectedLimits.min})`);
+            return false;
+        }
+        if (maxPos > detectedLimits.max) {
+            alert(`Maximum position cannot be greater than detected limit (${detectedLimits.max})`);
+            return false;
+        }
+        if (maxPos - minPos < 100) {
+            alert('Position range must be at least 100 steps');
+            return false;
+        }
+    }
+    
+    return true;
+}
+
 // Helper functions for warnings and control state
 function showHomingRequired() {
     // Find or create warning div
@@ -1044,6 +1195,12 @@ function disableMovementControls() {
         moveBtn.style.opacity = '0.5';
     }
     
+    const moveHomeBtn = document.querySelector('button[onclick="moveToHome()"]');
+    if (moveHomeBtn) {
+        moveHomeBtn.disabled = true;
+        moveHomeBtn.style.opacity = '0.5';
+    }
+    
     const posInput = document.getElementById('positionInput');
     if (posInput) {
         posInput.disabled = true;
@@ -1070,6 +1227,12 @@ function enableMovementControls() {
         moveBtn.style.opacity = '1';
     }
     
+    const moveHomeBtn = document.querySelector('button[onclick="moveToHome()"]');
+    if (moveHomeBtn) {
+        moveHomeBtn.disabled = false;
+        moveHomeBtn.style.opacity = '1';
+    }
+    
     const posInput = document.getElementById('positionInput');
     if (posInput) {
         posInput.disabled = false;
@@ -1086,6 +1249,8 @@ function enableMovementControls() {
 // Start WebSocket connection when page loads
 window.addEventListener('load', () => {
     connectWebSocket();
+    // Initialize limits display
+    updateLimitsDisplay();
 });
 )rawliteral";
 }
@@ -1937,6 +2102,9 @@ void WebInterface::getSystemStatus(JsonDocument& doc) {
         doc["positionLimits"]["min"] = minPos;
         doc["positionLimits"]["max"] = maxPos;
         doc["positionLimits"]["range"] = maxPos - minPos;
+        doc["positionLimits"]["valid"] = true;
+    } else {
+        doc["positionLimits"]["valid"] = false;
     }
     
     // Add basic config for UI
@@ -1952,7 +2120,7 @@ void WebInterface::getSystemStatus(JsonDocument& doc) {
     doc["config"]["dmxTimeout"] = config->dmxTimeout;
     doc["config"]["minPosition"] = config->minPosition;
     doc["config"]["maxPosition"] = config->maxPosition;
-    doc["config"]["homePosition"] = config->homePosition;
+    doc["config"]["homePositionPercent"] = config->homePositionPercent;
     
     // Add system information
     doc["systemInfo"]["version"] = "4.1.0";
@@ -1980,7 +2148,7 @@ void WebInterface::getSystemConfig(JsonDocument& doc) {
     // Position limits
     doc["limits"]["min"] = config->minPosition;
     doc["limits"]["max"] = config->maxPosition;
-    doc["limits"]["home"] = config->homePosition;
+    doc["limits"]["homePercent"] = config->homePositionPercent;
     
     // DMX config
     doc["dmx"]["channel"] = config->dmxStartChannel;
@@ -2112,9 +2280,15 @@ bool WebInterface::updateConfiguration(const JsonDocument& params) {
         Serial.printf("[WebInterface] Setting maxPosition to: %d\n", config->maxPosition);
     }
     
-    if (params.containsKey("homePosition")) {
-        config->homePosition = params["homePosition"];
-        Serial.printf("[WebInterface] Setting homePosition to: %d\n", config->homePosition);
+    if (params.containsKey("homePositionPercent")) {
+        float percent = params["homePositionPercent"];
+        // Validate percentage
+        if (percent >= 0.0f && percent <= 100.0f) {
+            config->homePositionPercent = percent;
+            Serial.printf("[WebInterface] Setting homePositionPercent to: %.1f%%\n", percent);
+        } else {
+            Serial.printf("[WebInterface] Invalid homePositionPercent: %.1f%% (must be 0-100)\n", percent);
+        }
     }
     
     // Save to flash

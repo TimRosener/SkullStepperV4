@@ -125,7 +125,7 @@ struct SystemStatus {
 struct SystemConfig {
   // Motion Parameters
   MotionProfile defaultProfile;
-  int32_t homePosition;
+  float homePositionPercent;  // Home position as percentage of range (0-100%)
   int32_t minPosition;
   int32_t maxPosition;
   float homingSpeed;        // Speed for homing sequence (steps/sec)
