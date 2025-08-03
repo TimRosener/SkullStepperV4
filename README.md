@@ -335,6 +335,7 @@ The system is now **production-ready** with a complete web-based control interfa
 ### Available Design Documents:
 - **[SerialInterface Manual](SerialInterface_Manual.md)** - Complete command reference and API documentation
 - **[WebInterface Design](WebInterface_Design.md)** - Phase 7 design specification (being reimplemented)
+- **[WebInterface Functionality Status](webfuncstat.md)** - Detailed comparison of SerialInterface vs WebInterface features
 
 ## Development Interaction Rules
 
@@ -497,12 +498,13 @@ Position Tracking          ALARM Signal
 ### ✅ WebInterface (Core 1 - Complete) - Phase 5
 **Implemented Features:**
 - **WiFi Access Point**: Direct connection without router (SSID: "SkullStepper")
-- **Async Web Server**: Non-blocking ESPAsyncWebServer on port 80
-- **WebSocket Support**: Real-time bidirectional communication at 10Hz
+- **Built-in Web Server**: ESP32 WebServer on port 80
+- **WebSocket Support**: Real-time bidirectional communication at 10Hz on port 81
 - **Responsive Web UI**: Mobile-friendly interface with touch controls
 - **Motion Control**: Move, jog, home, stop, emergency stop buttons
 - **Live Configuration**: Sliders for speed and acceleration adjustment
 - **Status Dashboard**: Real-time position, speed, and limit indicators
+- **System Information Display**: Version, uptime, memory stats, task monitoring
 - **REST API**: HTTP endpoints for automation integration
 - **Thread-Safe Design**: Uses existing queues and protected data access
 - **Embedded Assets**: All HTML/CSS/JS stored in PROGMEM (no filesystem needed)
@@ -1057,6 +1059,7 @@ Use `PARAMS` command for full parameter details with ranges and defaults.
 - **WebInterface as Core Component**: Full web control with real-time updates
 - **Test Functions in Web UI**: TEST and TEST2 buttons for validation
 - **Enhanced Safety**: Limit faults now trigger proper EMERGENCY_STOP state
+- **System Information Display**: Added real-time system info panel showing version, uptime, memory usage, and task statistics
 - **Complete Documentation**: All features documented with examples
 
 The SkullStepperV4 system is now a complete, production-ready stepper control solution suitable for professional installations requiring reliable, safe, and user-friendly operation.

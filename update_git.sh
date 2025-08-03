@@ -26,63 +26,64 @@ echo -e "\nAdding all changed files..."
 git add .
 
 # Create a comprehensive commit message
-COMMIT_MESSAGE="Documentation Update: WebInterface Module Now Production-Ready (Phase 5 Complete)
+COMMIT_MESSAGE="feat: Add system information display to WebInterface
 
-## Documentation Updates (2025-02-02):
+## WebInterface Enhancement (2025-02-02):
 
-Updated all project documentation to reflect that the WebInterface module is now fully implemented and integrated as a core system component.
+Added comprehensive system information display panel to the web interface, completing Section 2 of the missing features list.
 
-## Major Documentation Changes:
+## Implementation Details:
 
-### README.md Updates:
-- Changed StepperController status from 'IN PROGRESS' to 'COMPLETE'
-- Moved WebInterface from Phase 7 to Phase 5 (correctly ordered)
-- Updated phase summary: Phases 1-5 now all COMPLETE
-- Updated project status to v4.1.0 Production-Ready
-- Clarified DMXReceiver as next priority (Phase 6)
-- Marked SafetyMonitor as optional (Phase 7) since safety is already integrated
+### New System Information Panel:
+- **Version Display**: Shows firmware version (4.1.0)
+- **Hardware Info**: Displays ESP32-S3-WROOM-1 model
+- **Uptime Monitor**: Real-time uptime with human-readable formatting (days/hours/minutes/seconds)
+- **Memory Statistics**: Free heap memory display with KB/MB formatting
+- **Task Monitoring**: FreeRTOS task stack high water mark for broadcast task
+- **Connection Status**: Active WebSocket clients count with max limit display
 
-### WebInterface_Design.md → WebInterface Documentation:
-- Renamed from 'Design Document' to 'Documentation' 
-- Changed from 'Phase 7' to 'Phase 5 (IMPLEMENTED)'
-- Added status note: 'FULLY IMPLEMENTED and integrated into the production system'
-- Updated all implementation phases to show completed checkmarks
-- Changed 'Required Libraries' to 'Implemented Libraries'
-- Updated library section to reflect actual implementation:
-  - ESP32 WebServer (built-in)
-  - WebSocketsServer by Markus Sattler
-  - ArduinoJson
-  - DNSServer (built-in)
-- Updated conclusion to reflect completed implementation
-- Incremented document version to v2.0.0
+### Technical Implementation:
+- Extended getSystemStatus() to include systemInfo object in WebSocket updates
+- Added formatUptime() helper function for time formatting
+- Added formatMemory() helper function for memory size formatting
+- Created new CSS classes: .info-grid and .info-item matching existing design
+- Updates delivered via existing 10Hz WebSocket infrastructure
+- Thread-safe data access using established patterns
 
-### ChatPrompt.md Updates:
-- Clarified system has 'dual interfaces (Serial & Web)'
-- Confirmed production-ready status with all features complete
+### Code Changes:
+- **WebInterface.cpp**: 
+  - Added HTML structure for system info panel
+  - Added CSS styling for info grid layout
+  - Added JavaScript helper functions and UI update logic
+  - Extended getSystemStatus() with system information
+  - Updated getSystemInfo() with additional details
+- **README.md**: 
+  - Updated WebInterface features list
+  - Corrected 'Async Web Server' to 'Built-in Web Server'
+  - Added WebSocket port 81 specification
+  - Added system info display to latest enhancements
+- **webfuncstat.md**: 
+  - Marked Section 2 (Information Display) as complete ✅
+  - Listed all implemented info display features
 
-## Current System Status:
+## Architecture Compliance:
 
-### Completed Modules:
-✅ Phase 1: Hardware foundation and module framework
-✅ Phase 2: Configuration management with flash storage  
-✅ Phase 3: Interactive command interface (human & JSON)
-✅ Phase 4: Motion control with ODStepper integration
-✅ Phase 5: WebInterface module (WiFi control interface)
+- ✅ Follows modular architecture - no direct module calls
+- ✅ Uses thread-safe data access patterns
+- ✅ Maintains dual-core architecture principles
+- ✅ No functionality removed - only enhancements added
+- ✅ Documentation updated to reflect changes
+- ✅ Consistent with existing UI/UX design
 
-### Future Development:
-📝 Phase 6: DMXReceiver module - NEXT PRIORITY
-🔄 Phase 7: SafetyMonitor module - OPTIONAL (safety already integrated)
-🔄 Phase 8: Advanced features - FUTURE
+## Testing Notes:
 
-## Key Clarifications:
+System information panel tested and working:
+- Uptime increments correctly in real-time
+- Memory usage reflects actual ESP32 heap status
+- Task stack monitoring provides useful debugging info
+- All formatting functions handle edge cases properly
 
-1. **WebInterface is NOT an alternative** - it's a fully integrated core component
-2. **Uses standard libraries** - ESP32 WebServer + WebSocketsServer (not async alternatives)
-3. **Production-ready** - All core functionality complete and tested
-4. **Dual interfaces** - Both serial and web control work simultaneously
-5. **Phase renumbering** - WebInterface correctly documented as Phase 5
-
-This documentation update ensures anyone reading the project docs understands the current state: a production-ready system with comprehensive motion control accessible via both serial commands and web interface."
+This enhancement improves system monitoring capabilities while maintaining the clean, professional interface design."
 
 # Commit with the comprehensive message
 echo -e "\nCommitting changes..."

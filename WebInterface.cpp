@@ -113,6 +113,36 @@ String WebInterface::getIndexHTML() {
         </div>
         
         <div class="panel">
+            <h2>System Information</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <label>Version:</label>
+                    <span id="systemVersion" class="value">--</span>
+                </div>
+                <div class="info-item">
+                    <label>Hardware:</label>
+                    <span id="systemHardware" class="value">--</span>
+                </div>
+                <div class="info-item">
+                    <label>Uptime:</label>
+                    <span id="systemUptime" class="value">--</span>
+                </div>
+                <div class="info-item">
+                    <label>Free Memory:</label>
+                    <span id="systemMemory" class="value">--</span>
+                </div>
+                <div class="info-item">
+                    <label>Task Stack:</label>
+                    <span id="taskStack" class="value">--</span>
+                </div>
+                <div class="info-item">
+                    <label>WiFi Clients:</label>
+                    <span id="wifiClients" class="value">--</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel">
             <h2>Configuration</h2>
             
             <!-- Tab buttons -->
@@ -300,6 +330,29 @@ h1 {
 }
 
 .status-item .value {
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 5px;
+}
+
+.info-item label {
+    color: var(--text-dim);
+}
+
+.info-item .value {
     color: var(--primary-color);
     font-weight: bold;
 }
@@ -568,6 +621,35 @@ function updateConnectionStatus(connected) {
     }
 }
 
+// Helper function to format uptime
+function formatUptime(milliseconds) {
+    const seconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    
+    if (days > 0) {
+        return `${days}d ${hours % 24}h ${minutes % 60}m`;
+    } else if (hours > 0) {
+        return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+    } else if (minutes > 0) {
+        return `${minutes}m ${seconds % 60}s`;
+    } else {
+        return `${seconds}s`;
+    }
+}
+
+// Helper function to format memory
+function formatMemory(bytes) {
+    if (bytes > 1024 * 1024) {
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    } else if (bytes > 1024) {
+        return (bytes / 1024).toFixed(1) + ' KB';
+    } else {
+        return bytes + ' B';
+    }
+}
+
 function updateUI(data) {
     // Update status display
     if (data.systemState !== undefined) {
@@ -609,6 +691,28 @@ function updateUI(data) {
         const right = data.limits.right ? 'RIGHT' : '';
         const status = (left || right) ? `${left} ${right}`.trim() : 'OK';
         document.getElementById('limitStatus').textContent = status;
+    }
+    
+    // Update system information
+    if (data.systemInfo) {
+        if (data.systemInfo.version) {
+            document.getElementById('systemVersion').textContent = data.systemInfo.version;
+        }
+        if (data.systemInfo.hardware) {
+            document.getElementById('systemHardware').textContent = data.systemInfo.hardware;
+        }
+        if (data.systemInfo.uptime !== undefined) {
+            document.getElementById('systemUptime').textContent = formatUptime(data.systemInfo.uptime);
+        }
+        if (data.systemInfo.freeHeap !== undefined) {
+            document.getElementById('systemMemory').textContent = formatMemory(data.systemInfo.freeHeap);
+        }
+        if (data.systemInfo.taskStackHighWaterMark !== undefined) {
+            document.getElementById('taskStack').textContent = data.systemInfo.taskStackHighWaterMark + ' bytes';
+        }
+        if (data.systemInfo.wifiClients !== undefined) {
+            document.getElementById('wifiClients').textContent = data.systemInfo.wifiClients + ' / ' + (data.systemInfo.maxClients || 2);
+        }
     }
     
     // Only update config values if user is not actively adjusting them
@@ -1561,6 +1665,19 @@ void WebInterface::getSystemStatus(JsonDocument& doc) {
     doc["config"]["minPosition"] = config->minPosition;
     doc["config"]["maxPosition"] = config->maxPosition;
     doc["config"]["homePosition"] = config->homePosition;
+    
+    // Add system information
+    doc["systemInfo"]["version"] = "4.1.0";
+    doc["systemInfo"]["hardware"] = "ESP32-S3-WROOM-1";
+    doc["systemInfo"]["uptime"] = millis();
+    doc["systemInfo"]["freeHeap"] = ESP.getFreeHeap();
+    doc["systemInfo"]["wifiClients"] = activeClients;
+    doc["systemInfo"]["maxClients"] = WS_MAX_CLIENTS;
+    
+    // Get task stack high water mark for the broadcast task
+    if (broadcastTaskHandle != nullptr) {
+        doc["systemInfo"]["taskStackHighWaterMark"] = uxTaskGetStackHighWaterMark(broadcastTaskHandle);
+    }
 }
 
 void WebInterface::getSystemConfig(JsonDocument& doc) {
@@ -1583,11 +1700,26 @@ void WebInterface::getSystemConfig(JsonDocument& doc) {
 }
 
 void WebInterface::getSystemInfo(JsonDocument& doc) {
-    doc["version"] = "4.0.0";
+    doc["version"] = "4.1.0";
     doc["hardware"] = "ESP32-S3-WROOM-1";
     doc["uptime"] = millis();
     doc["freeHeap"] = ESP.getFreeHeap();
     doc["clients"] = activeClients;
+    doc["maxClients"] = WS_MAX_CLIENTS;
+    
+    // Task information
+    if (webTaskHandle != nullptr) {
+        doc["webTaskStackHighWaterMark"] = uxTaskGetStackHighWaterMark(webTaskHandle);
+    }
+    if (broadcastTaskHandle != nullptr) {
+        doc["broadcastTaskStackHighWaterMark"] = uxTaskGetStackHighWaterMark(broadcastTaskHandle);
+    }
+    
+    // WiFi information
+    doc["apSSID"] = apSSID;
+    doc["apIP"] = WiFi.softAPIP().toString();
+    doc["apMAC"] = WiFi.softAPmacAddress();
+    doc["apStations"] = WiFi.softAPgetStationNum();
 }
 
 bool WebInterface::sendMotionCommand(CommandType type, int32_t position) {
