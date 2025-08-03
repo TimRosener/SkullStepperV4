@@ -1,33 +1,4 @@
-    else if (mainCmd == "MOVEHOME" || mainCmd == "GOTOHOME") {
-      // Check if system is homed
-      if (!StepperController::isHomed()) {
-        sendError("System must be homed before moving to home position");
-        return false;
-      }
-      
-      // Get position limits and home percentage
-      int32_t minPos, maxPos;
-      if (!StepperController::getPositionLimits(minPos, maxPos)) {
-        sendError("Unable to get position limits");
-        return false;
-      }
-      
-      SystemConfig* config = SystemConfigMgr::getConfig();
-      if (!config) {
-        sendError("Configuration not available");
-        return false;
-      }
-      
-      // Calculate home position based on percentage
-      int32_t range = maxPos - minPos;
-      int32_t homePosition = minPos + (int32_t)((range * config->homePositionPercent) / 100.0f);
-      
-      sendInfo("Moving to home position");
-      Serial.printf("INFO: Target position: %d (%.1f%% of range)\n", homePosition, config->homePositionPercent);
-      
-      MotionCommand cmd = createMotionCommand(CommandType::MOVE_ABSOLUTE, homePosition);
-      return sendMotionCommand(cmd);
-    }// ============================================================================
+ 
 // File: SerialInterface.cpp
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
 // Version: 4.0.0
