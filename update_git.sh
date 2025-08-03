@@ -27,63 +27,62 @@ echo -e "\nAdding all changed files..."
 git add .
 
 # Create a comprehensive commit message
-COMMIT_MESSAGE="feat: Add advanced configuration parameters to WebInterface
+COMMIT_MESSAGE="fix: WebInterface stress test now runs continuously + UI improvements
 
-## WebInterface Enhancement (2025-02-02):
+## WebInterface Fixes and Enhancements (2025-02-02):
 
-Completed Section 3 (Advanced Configuration) by adding all missing advanced parameters to the web interface.
+Fixed the TEST function in WebInterface to properly implement a continuous stress test, matching the behavior of the SerialInterface.
 
-## Implementation Details:
+## Key Changes:
 
-### New Advanced Configuration Tab:
-- **Jerk Control**: Range slider (0-50000 steps/sec³) with live value display
-- **Emergency Deceleration**: Range slider (100-50000 steps/sec²) for emergency stop rate
-- **DMX Timeout**: Number input (100-60000 ms) for signal loss detection
-- **Parameter Help Text**: Added descriptive info for each advanced parameter
+### Stress Test Implementation:
+- **Added Continuous Testing**: TEST button now runs continuously between 10% and 90% of range
+- **State Tracking**: Added test state variables to track active tests and movement progress
+- **Auto-Movement**: System automatically sends next move command when current move completes
+- **Progress Updates**: Shows test cycle count every 10 movements via WebSocket
+- **Proper Stop Handling**: STOP and E-STOP buttons properly terminate active tests
+
+### Random Test Enhancement:
+- **Renamed TEST2 to RANDOM MOVES**: More descriptive name for better user clarity
+- **10 Position Sequence**: Generates and visits 10 random positions within safe range
+- **Progress Tracking**: Reports current position (e.g., \"Moving to position 3 of 10\")
+- **Completion Notification**: Announces when all positions have been visited
 
 ### Technical Implementation:
-- Added new "Advanced" tab to configuration section
-- Extended JavaScript event handlers for new sliders with touch support
-- Updated applyConfig() to include jerk, emergencyDeceleration, and dmxTimeout
-- Enhanced getSystemStatus() to send all parameters via WebSocket
-- Modified updateConfiguration() to handle new parameter updates
-- Added .param-info CSS class for parameter descriptions
+- Added updateStressTest() and updateRandomTest() methods called from main update loop
+- Test state checks every 100ms for responsive behavior
+- Integrated with existing motion control queue system
+- Thread-safe implementation using existing patterns
+- WebSocket broadcasts for real-time test status updates
 
-### Backend Integration:
-- All parameters properly saved to flash via SystemConfigMgr
-- Thread-safe configuration updates using existing patterns
-- Full integration with motion control system
-- Maintains compatibility with serial interface
+### Safety Features:
+- Tests automatically stop on limit fault detection
+- Clear error messages sent to all connected clients
+- Requires homing before test execution
+- Uses 10%-90% of detected range for safety margins
 
-### Code Changes:
-- **WebInterface.cpp**:
-  - Added HTML for Advanced tab with three new controls
-  - Added CSS styling for parameter info text
-  - Extended JavaScript for slider interactions
-  - Updated C++ handlers for new parameters
-  - Enhanced configuration structures
-- **webfuncstat.md**:
-  - Marked Section 3 (Advanced Configuration) as complete ✅
-  - Updated feature comparison documentation
+### UI Improvements:
+- Changed TEST button label to \"STRESS TEST\" for clarity
+- Updated tooltips with accurate descriptions
+- Modified help text: \"Use STOP or E-STOP buttons to stop tests\"
+- Button styling and layout remains consistent
 
-## Architecture Compliance:
+## Code Changes:
+- **WebInterface.cpp**: 
+  - Added test state variables and update functions
+  - Modified command handlers for continuous operation
+  - Enhanced WebSocket message handling
+  - Updated UI labels and help text
+- **WebInterface.h**: Added updateStressTest() and updateRandomTest() declarations
+- **README.md**: Documented the fixes and improvements
 
-- ✅ No direct module calls - uses SystemConfigMgr interface
-- ✅ Thread-safe access via existing configuration system
-- ✅ No functionality removed - only enhancements
-- ✅ Documentation fully updated
-- ✅ Consistent UI/UX with existing design
-- ✅ Mobile-responsive implementation
+## Benefits:
+- Web interface test functions now match serial interface behavior
+- True stress testing capability for mechanical validation
+- Better user understanding through clearer button labels
+- Consistent test behavior across all interfaces
 
-## User Benefits:
-
-- Complete control over motion smoothness via jerk limitation
-- Configurable emergency stop behavior for safety
-- DMX timeout adjustment for different DMX sources
-- Parameter validation and range enforcement
-- Persistent storage across power cycles
-
-The WebInterface now provides access to ALL system parameters, matching the capabilities of the SerialInterface for advanced users."
+The stress test will now run indefinitely until stopped, making it useful for burn-in testing, vibration analysis, and mechanical validation."
 
 # Commit with the comprehensive message
 echo -e "\nCommitting changes..."

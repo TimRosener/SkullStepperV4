@@ -707,6 +707,7 @@ Position Tracking          ALARM Signal
 - Comprehensive command interface supporting both human and JSON formats
 - Complete web interface with real-time control and monitoring
 - All motion parameters user-configurable via serial or web
+- **Fixed**: Web interface stress test now runs continuously (matches serial interface)
 - Ready for production deployment!
 
 **Recent Development (2025-01-31):**
@@ -1061,5 +1062,7 @@ Use `PARAMS` command for full parameter details with ranges and defaults.
 - **Enhanced Safety**: Limit faults now trigger proper EMERGENCY_STOP state
 - **System Information Display**: Added real-time system info panel showing version, uptime, memory usage, and task statistics
 - **Complete Documentation**: All features documented with examples
+- **Fixed Web Interface Stress Test**: TEST button now runs continuous stress test between 10% and 90% of range until stopped (matching serial interface behavior)
+- **Renamed TEST2**: Web interface TEST2 button renamed to "RANDOM MOVES" for better clarity
 
 The SkullStepperV4 system is now a complete, production-ready stepper control solution suitable for professional installations requiring reliable, safe, and user-friendly operation.

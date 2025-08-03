@@ -140,6 +140,10 @@ private:
     bool validateCommand(const JsonDocument& cmd);
     String buildJsonResponse(const char* status, const char* message);
     
+    // Test update methods
+    void updateStressTest();
+    void updateRandomTest();
+    
     // HTML/CSS/JS content methods
     String getIndexHTML();
     String getMainCSS();

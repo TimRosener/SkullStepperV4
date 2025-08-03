@@ -105,10 +105,10 @@ String WebInterface::getIndexHTML() {
             <div class="test-control">
                 <h3>Testing</h3>
                 <div class="test-buttons">
-                    <button class="btn btn-test" onclick="sendCommand('test')" title="Run range test (10% to 90% of range)">TEST</button>
-                    <button class="btn btn-test" onclick="sendCommand('test2')" title="Run random position test (10 positions)">TEST2</button>
+                    <button class="btn btn-test" onclick="sendCommand('test')" title="Run continuous stress test (10% to 90% of range)">STRESS TEST</button>
+                    <button class="btn btn-test" onclick="sendCommand('test2')" title="Move to 10 random positions within safe range">RANDOM MOVES</button>
                 </div>
-                <p class="test-info">Tests require homing first. Press any key to stop.</p>
+                <p class="test-info">Tests require homing first. Use STOP or E-STOP buttons to stop tests.</p>
             </div>
         </div>
         
@@ -1091,6 +1091,24 @@ window.addEventListener('load', () => {
 }
 
 // ============================================================================
+// Test State Variables
+// ============================================================================
+
+// Stress test state
+static bool g_stressTestActive = false;
+static int32_t g_testPos1 = 0;
+static int32_t g_testPos2 = 0;
+static bool g_testMovingToPos2 = true;
+static uint32_t g_testMoveCount = 0;
+static uint32_t g_lastTestCheckTime = 0;
+
+// Random test state  
+static bool g_randomTestActive = false;
+static int32_t g_randomPositions[10];
+static uint8_t g_randomTestIndex = 0;
+static uint32_t g_randomTestMoveCount = 0;
+
+// ============================================================================
 // Singleton Implementation
 // ============================================================================
 
@@ -1234,6 +1252,120 @@ void WebInterface::stop() {
 
 void WebInterface::update() {
     // Called from main loop - servers handle themselves in tasks
+    
+    // Update stress test if active
+    updateStressTest();
+    
+    // Update random test if active
+    updateRandomTest();
+}
+
+// ============================================================================
+// Test Update Functions
+// ============================================================================
+
+void WebInterface::updateStressTest() {
+    if (!g_stressTestActive) return;
+    
+    // Check if limit fault is active - stop test if so
+    if (StepperController::isLimitFaultActive()) {
+        g_stressTestActive = false;
+        // Broadcast error to all WebSocket clients
+        String errorMsg = "{\"status\":\"error\",\"message\":\"Stress test aborted - limit fault detected. Homing required.\"}";
+        for (uint8_t i = 0; i < WS_MAX_CLIENTS; i++) {
+            if (clientConnected[i] && wsServer) {
+                wsServer->sendTXT(i, errorMsg);
+            }
+        }
+        return;
+    }
+    
+    // Check motion state every 100ms
+    uint32_t currentTime = millis();
+    if (currentTime - g_lastTestCheckTime < 100) {
+        return;
+    }
+    g_lastTestCheckTime = currentTime;
+    
+    // Check if stepper is moving
+    if (!StepperController::isMoving()) {
+        // Movement completed, send next move
+        g_testMoveCount++;
+        
+        // Toggle direction
+        int32_t targetPos = g_testMovingToPos2 ? g_testPos1 : g_testPos2;
+        g_testMovingToPos2 = !g_testMovingToPos2;
+        
+        // Show progress every 10 moves
+        if (g_testMoveCount % 10 == 0) {
+            String statusMsg = "{\"status\":\"info\",\"message\":\"Test cycle " + String(g_testMoveCount / 2) + " completed\"}";
+            for (uint8_t i = 0; i < WS_MAX_CLIENTS; i++) {
+                if (clientConnected[i] && wsServer) {
+                    wsServer->sendTXT(i, statusMsg);
+                }
+            }
+        }
+        
+        // Send next move
+        sendMotionCommand(CommandType::MOVE_ABSOLUTE, targetPos);
+    }
+}
+
+void WebInterface::updateRandomTest() {
+    if (!g_randomTestActive) return;
+    
+    // Check if limit fault is active - stop test if so
+    if (StepperController::isLimitFaultActive()) {
+        g_randomTestActive = false;
+        // Broadcast error to all WebSocket clients
+        String errorMsg = "{\"status\":\"error\",\"message\":\"Random moves aborted - limit fault detected. Homing required.\"}";
+        for (uint8_t i = 0; i < WS_MAX_CLIENTS; i++) {
+            if (clientConnected[i] && wsServer) {
+                wsServer->sendTXT(i, errorMsg);
+            }
+        }
+        return;
+    }
+    
+    // Check motion state every 100ms
+    uint32_t currentTime = millis();
+    if (currentTime - g_lastTestCheckTime < 100) {
+        return;
+    }
+    g_lastTestCheckTime = currentTime;
+    
+    // Check if stepper is moving
+    if (!StepperController::isMoving()) {
+        // Movement completed
+        g_randomTestMoveCount++;
+        
+        // Check if we've completed all 10 positions
+        if (g_randomTestIndex >= 9) {
+            // Test complete
+            g_randomTestActive = false;
+            String completeMsg = "{\"status\":\"info\",\"message\":\"Random moves complete - visited " + String(g_randomTestMoveCount) + " positions\"}";
+            for (uint8_t i = 0; i < WS_MAX_CLIENTS; i++) {
+                if (clientConnected[i] && wsServer) {
+                    wsServer->sendTXT(i, completeMsg);
+                }
+            }
+            return;
+        }
+        
+        // Move to next position
+        g_randomTestIndex++;
+        int32_t targetPos = g_randomPositions[g_randomTestIndex];
+        
+        String progressMsg = "{\"status\":\"info\",\"message\":\"Moving to position " + String(g_randomTestIndex + 1) + " of 10: " + String(targetPos) + " steps\"}";
+        for (uint8_t i = 0; i < WS_MAX_CLIENTS; i++) {
+            if (clientConnected[i] && wsServer) {
+                wsServer->sendTXT(i, progressMsg);
+            }
+        }
+        
+        // Send next move
+        sendMotionCommand(CommandType::MOVE_ABSOLUTE, targetPos);
+    }
 }
 
 // ============================================================================
@@ -1400,6 +1532,11 @@ void WebInterface::handleCommand() {
         }
     }
     else if (command == "stop") {
+        // Stop any active tests
+        if (g_stressTestActive || g_randomTestActive) {
+            g_stressTestActive = false;
+            g_randomTestActive = false;
+        }
         if (sendMotionCommand(CommandType::STOP)) {
             sendJsonResponse(200, "ok", "Stop command queued");
         } else {
@@ -1407,6 +1544,11 @@ void WebInterface::handleCommand() {
         }
     }
     else if (command == "estop") {
+        // Stop any active tests
+        if (g_stressTestActive || g_randomTestActive) {
+            g_stressTestActive = false;
+            g_randomTestActive = false;
+        }
         if (sendMotionCommand(CommandType::EMERGENCY_STOP)) {
             sendJsonResponse(200, "ok", "Emergency stop command queued");
         } else {
@@ -1434,17 +1576,31 @@ void WebInterface::handleCommand() {
             return;
         }
         
+        // Stop any active tests
+        if (g_stressTestActive || g_randomTestActive) {
+            g_stressTestActive = false;
+            g_randomTestActive = false;
+            sendMotionCommand(CommandType::STOP);
+        }
+        
         // Get position limits and start test
         int32_t minPos, maxPos;
         if (StepperController::getPositionLimits(minPos, maxPos)) {
             int32_t range = maxPos - minPos;
-            int32_t pos10 = minPos + (range * 10 / 100);
-            int32_t pos90 = minPos + (range * 90 / 100);
+            g_testPos1 = minPos + (range * 10 / 100);
+            g_testPos2 = minPos + (range * 90 / 100);
+            
+            // Initialize stress test state
+            g_stressTestActive = true;
+            g_testMovingToPos2 = true;
+            g_testMoveCount = 0;
+            g_lastTestCheckTime = millis();
             
             // Send first test movement
-            if (sendMotionCommand(CommandType::MOVE_ABSOLUTE, pos90)) {
-                sendJsonResponse(200, "ok", "Range test started - moving between 10% and 90% of range");
+            if (sendMotionCommand(CommandType::MOVE_ABSOLUTE, g_testPos2)) {
+                sendJsonResponse(200, "ok", "Stress test started - moving between 10% and 90% of range continuously");
             } else {
+                g_stressTestActive = false;
                 sendJsonResponse(503, "error", "Failed to start test");
             }
         } else {
@@ -1458,6 +1614,13 @@ void WebInterface::handleCommand() {
             return;
         }
         
+        // Stop any active tests
+        if (g_stressTestActive || g_randomTestActive) {
+            g_stressTestActive = false;
+            g_randomTestActive = false;
+            sendMotionCommand(CommandType::STOP);
+        }
+        
         // Get position limits for random test
         int32_t minPos, maxPos;
         if (StepperController::getPositionLimits(minPos, maxPos)) {
@@ -1466,13 +1629,22 @@ void WebInterface::handleCommand() {
             int32_t safeMax = minPos + (range * 90 / 100);
             int32_t safeRange = safeMax - safeMin;
             
-            // Generate a random position
-            int32_t randomPos = safeMin + (esp_random() % safeRange);
+            // Generate 10 random positions
+            for (int i = 0; i < 10; i++) {
+                g_randomPositions[i] = safeMin + (esp_random() % safeRange);
+            }
             
-            // Send test movement
-            if (sendMotionCommand(CommandType::MOVE_ABSOLUTE, randomPos)) {
-                sendJsonResponse(200, "ok", "Random test started - moving to random positions");
+            // Initialize random test state
+            g_randomTestActive = true;
+            g_randomTestIndex = 0;
+            g_randomTestMoveCount = 0;
+            g_lastTestCheckTime = millis();
+            
+            // Send first test movement
+            if (sendMotionCommand(CommandType::MOVE_ABSOLUTE, g_randomPositions[0])) {
+                sendJsonResponse(200, "ok", "Random moves started - moving to 10 random positions");
             } else {
+                g_randomTestActive = false;
                 sendJsonResponse(503, "error", "Failed to start test");
             }
         } else {
@@ -1604,9 +1776,23 @@ void WebInterface::processWebSocketMessage(uint8_t num, uint8_t* payload, size_t
             sendMotionCommand(CommandType::HOME);
         }
         else if (command == "stop") {
+            // Stop any active tests
+            if (g_stressTestActive || g_randomTestActive) {
+                g_stressTestActive = false;
+                g_randomTestActive = false;
+                String statusMsg = "{\"status\":\"info\",\"message\":\"Test stopped by user\"}";
+                wsServer->sendTXT(num, statusMsg);
+            }
             sendMotionCommand(CommandType::STOP);
         }
         else if (command == "estop") {
+            // Stop any active tests
+            if (g_stressTestActive || g_randomTestActive) {
+                g_stressTestActive = false;
+                g_randomTestActive = false;
+                String statusMsg = "{\"status\":\"info\",\"message\":\"Test stopped by emergency stop\"}";
+                wsServer->sendTXT(num, statusMsg);
+            }
             sendMotionCommand(CommandType::EMERGENCY_STOP);
         }
         else if (command == "enable") {
@@ -1624,18 +1810,31 @@ void WebInterface::processWebSocketMessage(uint8_t num, uint8_t* payload, size_t
                 return;
             }
             
-            // Get position limits and queue test movements
+            // Stop any active tests
+            if (g_stressTestActive || g_randomTestActive) {
+                g_stressTestActive = false;
+                g_randomTestActive = false;
+                sendMotionCommand(CommandType::STOP);
+            }
+            
+            // Get position limits and start continuous test
             int32_t minPos, maxPos;
             if (StepperController::getPositionLimits(minPos, maxPos)) {
                 int32_t range = maxPos - minPos;
-                int32_t pos10 = minPos + (range * 10 / 100);
-                int32_t pos90 = minPos + (range * 90 / 100);
+                g_testPos1 = minPos + (range * 10 / 100);
+                g_testPos2 = minPos + (range * 90 / 100);
+                
+                // Initialize stress test state
+                g_stressTestActive = true;
+                g_testMovingToPos2 = true;
+                g_testMoveCount = 0;
+                g_lastTestCheckTime = millis();
                 
                 // Send first test movement
-                sendMotionCommand(CommandType::MOVE_ABSOLUTE, pos90);
+                sendMotionCommand(CommandType::MOVE_ABSOLUTE, g_testPos2);
                 
                 // Send status message
-                String statusMsg = "{\"status\":\"info\",\"message\":\"Range test started - moving between 10% and 90% of range\"}";
+                String statusMsg = "{\"status\":\"info\",\"message\":\"Stress test started - moving between 10% and 90% of range continuously\"}";
                 wsServer->sendTXT(num, statusMsg);
             }
         }
@@ -1648,6 +1847,13 @@ void WebInterface::processWebSocketMessage(uint8_t num, uint8_t* payload, size_t
                 return;
             }
             
+            // Stop any active tests
+            if (g_stressTestActive || g_randomTestActive) {
+                g_stressTestActive = false;
+                g_randomTestActive = false;
+                sendMotionCommand(CommandType::STOP);
+            }
+            
             // Get position limits for random test
             int32_t minPos, maxPos;
             if (StepperController::getPositionLimits(minPos, maxPos)) {
@@ -1656,14 +1862,22 @@ void WebInterface::processWebSocketMessage(uint8_t num, uint8_t* payload, size_t
                 int32_t safeMax = minPos + (range * 90 / 100);
                 int32_t safeRange = safeMax - safeMin;
                 
-                // Generate a random position within safe range
-                int32_t randomPos = safeMin + (esp_random() % safeRange);
+                // Generate 10 random positions
+                for (int i = 0; i < 10; i++) {
+                    g_randomPositions[i] = safeMin + (esp_random() % safeRange);
+                }
                 
-                // Send test movement
-                sendMotionCommand(CommandType::MOVE_ABSOLUTE, randomPos);
+                // Initialize random test state
+                g_randomTestActive = true;
+                g_randomTestIndex = 0;
+                g_randomTestMoveCount = 0;
+                g_lastTestCheckTime = millis();
+                
+                // Send first test movement
+                sendMotionCommand(CommandType::MOVE_ABSOLUTE, g_randomPositions[0]);
                 
                 // Send status message
-                String statusMsg = "{\"status\":\"info\",\"message\":\"Random test started - moving to random positions\"}";
+                String statusMsg = "{\"status\":\"info\",\"message\":\"Random moves started - moving to 10 random positions\"}";
                 wsServer->sendTXT(num, statusMsg);
             }
         }
