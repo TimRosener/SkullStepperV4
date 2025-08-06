@@ -148,31 +148,93 @@ String WebInterface::getIndexHTML() {
         <div class="panel">
             <h2>Configuration</h2>
             
-            <!-- Tab buttons -->
+            <!-- Tab buttons - removed Limits tab -->
             <div class="config-tabs">
-                <button class="tab-btn active" onclick="showConfigTab('motion')">Motion</button>
+                <button class="tab-btn active" onclick="showConfigTab('motion')">Motion & Limits</button>
                 <button class="tab-btn" onclick="showConfigTab('dmx')">DMX</button>
-                <button class="tab-btn" onclick="showConfigTab('limits')">Limits</button>
                 <button class="tab-btn" onclick="showConfigTab('advanced')">Advanced</button>
             </div>
             
-            <!-- Motion Configuration Tab -->
+            <!-- Motion Configuration Tab - now includes Position Limits -->
             <div id="motion-tab" class="config-tab active">
                 <h3>Motion Parameters</h3>
-                <div class="config-item">
-                    <label for="maxSpeed">Max Speed:</label>
-                    <input type="range" id="maxSpeed" min="100" max="10000" step="100">
-                    <span id="maxSpeedValue">--</span> steps/sec
+                <div id="homingSpeedOnly" style="display:block;">
+                    <div class="homing-notice" style="background: rgba(255,102,0,0.1); padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+                        <p style="margin: 0; color: #ff6600; font-weight: bold; text-align: center;">
+                            ⚠️ System must be homed before motion parameters can be adjusted.
+                            <br>Only homing speed can be configured before homing.
+                        </p>
+                    </div>
+                    <div class="config-item">
+                        <label for="homingSpeed">Homing Speed:</label>
+                        <input type="range" id="homingSpeed" min="100" max="10000" step="100">
+                        <span id="homingSpeedValue">--</span> steps/sec
+                    </div>
                 </div>
-                <div class="config-item">
-                    <label for="acceleration">Acceleration:</label>
-                    <input type="range" id="acceleration" min="100" max="20000" step="100">
-                    <span id="accelerationValue">--</span> steps/sec²
+                <div id="allMotionParams" style="display:none;">
+                    <div class="config-item">
+                        <label for="maxSpeed">Max Speed:</label>
+                        <input type="range" id="maxSpeed" min="100" max="10000" step="100">
+                        <span id="maxSpeedValue">--</span> steps/sec
+                    </div>
+                    <div class="config-item">
+                        <label for="acceleration">Acceleration:</label>
+                        <input type="range" id="acceleration" min="100" max="20000" step="100">
+                        <span id="accelerationValue">--</span> steps/sec²
+                    </div>
+                    <div class="config-item">
+                        <label for="homingSpeed">Homing Speed:</label>
+                        <input type="range" id="homingSpeedAlso" min="100" max="10000" step="100">
+                        <span id="homingSpeedAlsoValue">--</span> steps/sec
+                    </div>
                 </div>
-                <div class="config-item">
-                    <label for="homingSpeed">Homing Speed:</label>
-                    <input type="range" id="homingSpeed" min="100" max="10000" step="100">
-                    <span id="homingSpeedValue">--</span> steps/sec
+                
+                <h3 style="margin-top: 25px;">Position Limits</h3>
+                <div id="limitsNotHomed" class="homing-notice" style="display:none;">
+                    <p style="color: #ff6600; font-weight: bold; text-align: center; padding: 20px; background: rgba(255,102,0,0.1); border-radius: 5px;">
+                        ⚠️ System must be homed before position limits can be configured.
+                        <br>Use the HOME button to detect physical travel limits.
+                    </p>
+                </div>
+                <div id="limitsContent" style="display:none;">
+                    <div class="limits-info" style="background: rgba(0,212,255,0.1); padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+                        <p style="margin: 0 0 10px 0;"><strong>Detected Physical Range:</strong></p>
+                        <p style="margin: 0;">Min: <span id="detectedMin" style="color: #00d4ff; font-weight: bold;">--</span> steps</p>
+                        <p style="margin: 0;">Max: <span id="detectedMax" style="color: #00d4ff; font-weight: bold;">--</span> steps</p>
+                        <p style="margin: 10px 0 0 0;">Total Range: <span id="detectedRange" style="color: #00d4ff; font-weight: bold;">--</span> steps</p>
+                    </div>
+                    <div class="config-item">
+                        <label for="minPositionPercent">Minimum Position:</label>
+                        <input type="range" id="minPositionPercent" min="0" max="45" step="5" value="0">
+                        <span id="minPositionPercentValue">0</span>% of range
+                        <small class="param-info">Safety margin from left limit (0-45%)</small>
+                    </div>
+                    <div class="config-item">
+                        <label for="maxPositionPercent">Maximum Position:</label>
+                        <input type="range" id="maxPositionPercent" min="55" max="100" step="5" value="100">
+                        <span id="maxPositionPercentValue">100</span>% of range
+                        <small class="param-info">Safety margin from right limit (55-100%)</small>
+                    </div>
+                    <div class="config-item">
+                        <label for="homePositionPercent">Home Position:</label>
+                        <input type="range" id="homePositionPercent" min="0" max="100" step="5" value="50">
+                        <span id="homePositionPercentValue">50</span>% of range
+                        <small class="param-info">Position to return to after homing (0% = left limit, 100% = right limit)</small>
+                    </div>
+                    <div class="config-item" style="margin-top: 20px;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="autoHomeOnBoot" style="margin-right: 10px; width: auto;">
+                            Auto-Home on Boot
+                        </label>
+                        <small class="param-info">Automatically perform homing sequence when system starts up</small>
+                    </div>
+                    <div class="config-item">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="autoHomeOnEstop" style="margin-right: 10px; width: auto;">
+                            Auto-Home on E-Stop
+                        </label>
+                        <small class="param-info">Automatically re-home after emergency stop or unexpected limit switch activation</small>
+                    </div>
                 </div>
             </div>
             
@@ -192,41 +254,7 @@ String WebInterface::getIndexHTML() {
                     <input type="number" id="dmxOffset" step="1" placeholder="Position offset in steps">
                 </div>
             </div>
-            
-            <!-- Position Limits Tab -->
-            <div id="limits-tab" class="config-tab">
-                <h3>Position Limits</h3>
-                <div id="limitsNotHomed" class="homing-notice" style="display:none;">
-                    <p style="color: #ff6600; font-weight: bold; text-align: center; padding: 20px; background: rgba(255,102,0,0.1); border-radius: 5px;">
-                        ⚠️ System must be homed before position limits can be configured.
-                        <br>Use the HOME button to detect physical travel limits.
-                    </p>
-                </div>
-                <div id="limitsContent" style="display:none;">
-                    <div class="limits-info" style="background: rgba(0,212,255,0.1); padding: 15px; border-radius: 5px; margin-bottom: 15px;">
-                        <p style="margin: 0 0 10px 0;"><strong>Detected Physical Range:</strong></p>
-                        <p style="margin: 0;">Min: <span id="detectedMin" style="color: #00d4ff; font-weight: bold;">--</span> steps</p>
-                        <p style="margin: 0;">Max: <span id="detectedMax" style="color: #00d4ff; font-weight: bold;">--</span> steps</p>
-                        <p style="margin: 10px 0 0 0;">Total Range: <span id="detectedRange" style="color: #00d4ff; font-weight: bold;">--</span> steps</p>
-                    </div>
-                    <div class="config-item">
-                        <label for="minPosition">Minimum Position:</label>
-                        <input type="number" id="minPosition" step="10" placeholder="Steps">
-                        <small class="param-info">Must be ≥ <span id="minPosLimit">--</span> (detected minimum)</small>
-                    </div>
-                    <div class="config-item">
-                        <label for="maxPosition">Maximum Position:</label>
-                        <input type="number" id="maxPosition" step="10" placeholder="Steps">
-                        <small class="param-info">Must be ≤ <span id="maxPosLimit">--</span> (detected maximum)</small>
-                    </div>
-                    <div class="config-item">
-                        <label for="homePositionPercent">Home Position:</label>
-                        <input type="range" id="homePositionPercent" min="0" max="100" step="5" value="50">
-                        <span id="homePositionPercentValue">50</span>% of range
-                        <small class="param-info">Position to return to after homing (0% = left limit, 100% = right limit)</small>
-                    </div>
-                </div>
-            </div>
+
             
             <!-- Advanced Configuration Tab -->
             <div id="advanced-tab" class="config-tab">
@@ -804,6 +832,12 @@ function updateUI(data) {
         if (data.config.homingSpeed !== undefined) {
             document.getElementById('homingSpeed').value = data.config.homingSpeed;
             document.getElementById('homingSpeedValue').textContent = data.config.homingSpeed;
+            // Also update the duplicate slider if it exists
+            const alsoSlider = document.getElementById('homingSpeedAlso');
+            if (alsoSlider) {
+                alsoSlider.value = data.config.homingSpeed;
+                document.getElementById('homingSpeedAlsoValue').textContent = data.config.homingSpeed;
+            }
         }
         if (data.config.jerk !== undefined) {
             document.getElementById('jerk').value = data.config.jerk;
@@ -828,16 +862,27 @@ function updateUI(data) {
             document.getElementById('dmxTimeout').value = data.config.dmxTimeout;
         }
         
-        // Position limits
-        if (data.config.minPosition !== undefined) {
-            document.getElementById('minPosition').value = data.config.minPosition;
-        }
-        if (data.config.maxPosition !== undefined) {
-            document.getElementById('maxPosition').value = data.config.maxPosition;
+        // Position limits - convert from steps to percentages if we have detected limits
+        if (detectedLimits && data.config.minPosition !== undefined && data.config.maxPosition !== undefined) {
+            const range = detectedLimits.max - detectedLimits.min;
+            const minPercent = Math.round(((data.config.minPosition - detectedLimits.min) / range) * 100);
+            const maxPercent = Math.round(((data.config.maxPosition - detectedLimits.min) / range) * 100);
+            
+            document.getElementById('minPositionPercent').value = minPercent;
+            document.getElementById('minPositionPercentValue').textContent = minPercent;
+            document.getElementById('maxPositionPercent').value = maxPercent;
+            document.getElementById('maxPositionPercentValue').textContent = maxPercent;
         }
         if (data.config.homePositionPercent !== undefined) {
             document.getElementById('homePositionPercent').value = data.config.homePositionPercent;
             document.getElementById('homePositionPercentValue').textContent = data.config.homePositionPercent;
+        }
+        // Update auto-home checkboxes
+        if (data.config.autoHomeOnBoot !== undefined) {
+            document.getElementById('autoHomeOnBoot').checked = data.config.autoHomeOnBoot;
+        }
+        if (data.config.autoHomeOnEstop !== undefined) {
+            document.getElementById('autoHomeOnEstop').checked = data.config.autoHomeOnEstop;
         }
     }
 }
@@ -908,28 +953,64 @@ function jog(steps) {
 }
 
 function applyConfig() {
-    // Validate position limits if they're being changed
-    const minPosInput = document.getElementById('minPosition').value;
-    const maxPosInput = document.getElementById('maxPosition').value;
-    if ((minPosInput || maxPosInput) && !validatePositionLimits()) {
-        return; // Validation failed
-    }
+    // Determine which tab is currently active
+    const activeTab = document.querySelector('.config-tab.active').id;
+    const config = {};
     
-    // Gather all configuration values
-    const config = {
-        maxSpeed: parseInt(document.getElementById('maxSpeed').value),
-        acceleration: parseInt(document.getElementById('acceleration').value),
-        homingSpeed: parseInt(document.getElementById('homingSpeed').value),
-        jerk: parseInt(document.getElementById('jerk').value),
-        emergencyDeceleration: parseInt(document.getElementById('emergencyDeceleration').value),
-        dmxChannel: parseInt(document.getElementById('dmxChannel').value),
-        dmxScale: parseFloat(document.getElementById('dmxScale').value),
-        dmxOffset: parseInt(document.getElementById('dmxOffset').value),
-        dmxTimeout: parseInt(document.getElementById('dmxTimeout').value),
-        minPosition: parseInt(document.getElementById('minPosition').value),
-        maxPosition: parseInt(document.getElementById('maxPosition').value),
-        homePositionPercent: parseFloat(document.getElementById('homePositionPercent').value)
-    };
+    if (activeTab === 'motion-tab') {
+        // Motion & Limits tab
+        // Only include maxSpeed and acceleration if the system is homed
+        if (detectedLimits) {
+            config.maxSpeed = parseInt(document.getElementById('maxSpeed').value);
+            config.acceleration = parseInt(document.getElementById('acceleration').value);
+            // Get homing speed from whichever slider is visible
+            const homingSpeedAlso = document.getElementById('homingSpeedAlso');
+            if (homingSpeedAlso && homingSpeedAlso.offsetParent !== null) {
+                config.homingSpeed = parseInt(homingSpeedAlso.value);
+            } else {
+                config.homingSpeed = parseInt(document.getElementById('homingSpeed').value);
+            }
+        } else {
+            // Not homed - only send homing speed
+            config.homingSpeed = parseInt(document.getElementById('homingSpeed').value);
+        }
+        
+        // Position limits - convert percentages to actual positions if homed
+        if (detectedLimits) {
+            const minPercent = parseFloat(document.getElementById('minPositionPercent').value);
+            const maxPercent = parseFloat(document.getElementById('maxPositionPercent').value);
+            const range = detectedLimits.max - detectedLimits.min;
+            
+            config.minPosition = detectedLimits.min + Math.floor((range * minPercent) / 100);
+            config.maxPosition = detectedLimits.min + Math.floor((range * maxPercent) / 100);
+            config.homePositionPercent = parseFloat(document.getElementById('homePositionPercent').value);
+            
+            // Validate the resulting range
+            if (config.maxPosition - config.minPosition < 100) {
+                alert('Position range must be at least 100 steps. Please adjust the percentages.');
+                return;
+            }
+        } else if (document.getElementById('minPositionPercent').value || 
+                   document.getElementById('maxPositionPercent').value || 
+                   document.getElementById('homePositionPercent').value) {
+            alert('System must be homed before configuring position limits.');
+            return;
+        }
+        
+        // Include auto-home settings
+        config.autoHomeOnBoot = document.getElementById('autoHomeOnBoot').checked;
+        config.autoHomeOnEstop = document.getElementById('autoHomeOnEstop').checked;
+    } else if (activeTab === 'dmx-tab') {
+        // DMX tab
+        config.dmxChannel = parseInt(document.getElementById('dmxChannel').value);
+        config.dmxScale = parseFloat(document.getElementById('dmxScale').value);
+        config.dmxOffset = parseInt(document.getElementById('dmxOffset').value);
+    } else if (activeTab === 'advanced-tab') {
+        // Advanced tab
+        config.jerk = parseInt(document.getElementById('jerk').value);
+        config.emergencyDeceleration = parseInt(document.getElementById('emergencyDeceleration').value);
+        config.dmxTimeout = parseInt(document.getElementById('dmxTimeout').value);
+    }
     
     // Remove any NaN values
     Object.keys(config).forEach(key => {
@@ -975,8 +1056,8 @@ function showConfigTab(tabName) {
     document.getElementById(tabName + '-tab').classList.add('active');
     event.target.classList.add('active');
     
-    // Update limits display when limits tab is selected
-    if (tabName === 'limits') {
+    // Update limits display when motion tab is selected (since it now contains limits)
+    if (tabName === 'motion') {
         updateLimitsDisplay();
     }
 }
@@ -985,6 +1066,34 @@ function showConfigTab(tabName) {
 document.getElementById('homePositionPercent').addEventListener('input', (e) => {
     isAdjustingSliders = true;
     document.getElementById('homePositionPercentValue').textContent = e.target.value;
+});
+
+document.getElementById('minPositionPercent').addEventListener('input', (e) => {
+    isAdjustingSliders = true;
+    const value = parseInt(e.target.value);
+    document.getElementById('minPositionPercentValue').textContent = value;
+    
+    // Ensure max is at least 10% higher than min
+    const maxSlider = document.getElementById('maxPositionPercent');
+    const minAllowedMax = value + 10;
+    if (parseInt(maxSlider.value) < minAllowedMax) {
+        maxSlider.value = minAllowedMax;
+        document.getElementById('maxPositionPercentValue').textContent = minAllowedMax;
+    }
+});
+
+document.getElementById('maxPositionPercent').addEventListener('input', (e) => {
+    isAdjustingSliders = true;
+    const value = parseInt(e.target.value);
+    document.getElementById('maxPositionPercentValue').textContent = value;
+    
+    // Ensure min is at least 10% lower than max
+    const minSlider = document.getElementById('minPositionPercent');
+    const maxAllowedMin = value - 10;
+    if (parseInt(minSlider.value) > maxAllowedMin) {
+        minSlider.value = maxAllowedMin;
+        document.getElementById('minPositionPercentValue').textContent = maxAllowedMin;
+    }
 });
 
 document.getElementById('maxSpeed').addEventListener('input', (e) => {
@@ -1000,7 +1109,25 @@ document.getElementById('acceleration').addEventListener('input', (e) => {
 document.getElementById('homingSpeed').addEventListener('input', (e) => {
     isAdjustingSliders = true;
     document.getElementById('homingSpeedValue').textContent = e.target.value;
+    // Also update the duplicate slider if it exists
+    const alsoSlider = document.getElementById('homingSpeedAlso');
+    if (alsoSlider) {
+        alsoSlider.value = e.target.value;
+        document.getElementById('homingSpeedAlsoValue').textContent = e.target.value;
+    }
 });
+
+// Add listener for the duplicate homing speed slider
+const homingSpeedAlso = document.getElementById('homingSpeedAlso');
+if (homingSpeedAlso) {
+    homingSpeedAlso.addEventListener('input', (e) => {
+        isAdjustingSliders = true;
+        document.getElementById('homingSpeedAlsoValue').textContent = e.target.value;
+        // Also update the primary slider
+        document.getElementById('homingSpeed').value = e.target.value;
+        document.getElementById('homingSpeedValue').textContent = e.target.value;
+    });
+}
 
 document.getElementById('jerk').addEventListener('input', (e) => {
     isAdjustingSliders = true;
@@ -1035,6 +1162,12 @@ document.getElementById('homingSpeed').addEventListener('mousedown', () => {
     isAdjustingSliders = true;
 });
 
+if (document.getElementById('homingSpeedAlso')) {
+    document.getElementById('homingSpeedAlso').addEventListener('mousedown', () => {
+        isAdjustingSliders = true;
+    });
+}
+
 document.getElementById('jerk').addEventListener('mousedown', () => {
     isAdjustingSliders = true;
 });
@@ -1056,6 +1189,12 @@ document.getElementById('homingSpeed').addEventListener('touchstart', () => {
     isAdjustingSliders = true;
 });
 
+if (document.getElementById('homingSpeedAlso')) {
+    document.getElementById('homingSpeedAlso').addEventListener('touchstart', () => {
+        isAdjustingSliders = true;
+    });
+}
+
 document.getElementById('jerk').addEventListener('touchstart', () => {
     isAdjustingSliders = true;
 });
@@ -1075,68 +1214,42 @@ document.getElementById('positionInput').addEventListener('keypress', (e) => {
 function updateLimitsDisplay() {
     const limitsNotHomed = document.getElementById('limitsNotHomed');
     const limitsContent = document.getElementById('limitsContent');
-    const minInput = document.getElementById('minPosition');
-    const maxInput = document.getElementById('maxPosition');
+    const minPercentInput = document.getElementById('minPositionPercent');
+    const maxPercentInput = document.getElementById('maxPositionPercent');
+    const homePercentInput = document.getElementById('homePositionPercent');
+    
+    // Also update motion parameters visibility
+    const homingSpeedOnly = document.getElementById('homingSpeedOnly');
+    const allMotionParams = document.getElementById('allMotionParams');
     
     if (detectedLimits) {
-        // System is homed - show limits controls
+        // System is homed - show limits controls and all motion params
         limitsNotHomed.style.display = 'none';
         limitsContent.style.display = 'block';
+        homingSpeedOnly.style.display = 'none';
+        allMotionParams.style.display = 'block';
         
         // Update detected values display
         document.getElementById('detectedMin').textContent = detectedLimits.min;
         document.getElementById('detectedMax').textContent = detectedLimits.max;
         document.getElementById('detectedRange').textContent = detectedLimits.range;
-        document.getElementById('minPosLimit').textContent = detectedLimits.min;
-        document.getElementById('maxPosLimit').textContent = detectedLimits.max;
-        
-        // Set input constraints
-        minInput.min = detectedLimits.min;
-        minInput.max = detectedLimits.max - 100; // Must leave room for movement
-        maxInput.min = detectedLimits.min + 100; // Must leave room for movement
-        maxInput.max = detectedLimits.max;
         
         // Enable inputs
-        minInput.disabled = false;
-        maxInput.disabled = false;
+        minPercentInput.disabled = false;
+        maxPercentInput.disabled = false;
+        homePercentInput.disabled = false;
     } else {
-        // System not homed - show warning
+        // System not homed - show warning and only homing speed
         limitsNotHomed.style.display = 'block';
         limitsContent.style.display = 'none';
+        homingSpeedOnly.style.display = 'block';
+        allMotionParams.style.display = 'none';
         
         // Disable inputs
-        minInput.disabled = true;
-        maxInput.disabled = true;
+        minPercentInput.disabled = true;
+        maxPercentInput.disabled = true;
+        homePercentInput.disabled = true;
     }
-}
-
-// Validate position limits before applying
-function validatePositionLimits() {
-    if (!detectedLimits) {
-        alert('System must be homed before setting position limits');
-        return false;
-    }
-    
-    const minPos = parseInt(document.getElementById('minPosition').value);
-    const maxPos = parseInt(document.getElementById('maxPosition').value);
-    
-    if (!isNaN(minPos) && !isNaN(maxPos)) {
-        // Check against detected limits
-        if (minPos < detectedLimits.min) {
-            alert(`Minimum position cannot be less than detected limit (${detectedLimits.min})`);
-            return false;
-        }
-        if (maxPos > detectedLimits.max) {
-            alert(`Maximum position cannot be greater than detected limit (${detectedLimits.max})`);
-            return false;
-        }
-        if (maxPos - minPos < 100) {
-            alert('Position range must be at least 100 steps');
-            return false;
-        }
-    }
-    
-    return true;
 }
 
 // Helper functions for warnings and control state
@@ -2121,6 +2234,8 @@ void WebInterface::getSystemStatus(JsonDocument& doc) {
     doc["config"]["minPosition"] = config->minPosition;
     doc["config"]["maxPosition"] = config->maxPosition;
     doc["config"]["homePositionPercent"] = config->homePositionPercent;
+    doc["config"]["autoHomeOnBoot"] = config->autoHomeOnBoot;
+    doc["config"]["autoHomeOnEstop"] = config->autoHomeOnEstop;
     
     // Add system information
     doc["systemInfo"]["version"] = "4.1.0";
@@ -2289,6 +2404,17 @@ bool WebInterface::updateConfiguration(const JsonDocument& params) {
         } else {
             Serial.printf("[WebInterface] Invalid homePositionPercent: %.1f%% (must be 0-100)\n", percent);
         }
+    }
+    
+    // Update auto-home settings
+    if (params.containsKey("autoHomeOnBoot")) {
+        config->autoHomeOnBoot = params["autoHomeOnBoot"];
+        Serial.printf("[WebInterface] Setting autoHomeOnBoot to: %s\n", config->autoHomeOnBoot ? "ON" : "OFF");
+    }
+    
+    if (params.containsKey("autoHomeOnEstop")) {
+        config->autoHomeOnEstop = params["autoHomeOnEstop"];
+        Serial.printf("[WebInterface] Setting autoHomeOnEstop to: %s\n", config->autoHomeOnEstop ? "ON" : "OFF");
     }
     
     // Save to flash

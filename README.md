@@ -1,6 +1,6 @@
 # SkullStepperV4 - ESP32-S3 Closed-Loop Stepper Control System
 
-**Version**: 4.1.0  
+**Version**: 4.1.1  
 **Date**: 2025-02-02  
 **Status**: Production-Ready with Web Interface
 
@@ -332,10 +332,15 @@ The system is now **production-ready** with a complete web-based control interfa
 
 ## Design Documentation
 
-### Available Design Documents:
+### Available Documentation:
+- **[Quick Reference](QUICK_REFERENCE.md)** - Essential commands and operations
 - **[SerialInterface Manual](SerialInterface_Manual.md)** - Complete command reference and API documentation
-- **[WebInterface Design](WebInterface_Design.md)** - Phase 7 design specification (being reimplemented)
-- **[WebInterface Functionality Status](webfuncstat.md)** - Detailed comparison of SerialInterface vs WebInterface features
+- **[WebInterface Design](WebInterface_Design.md)** - Web interface design specification
+- **[WebInterface Functionality Status](webfuncstat.md)** - Feature comparison matrix
+- **[Design Documentation](design_docs.md)** - Detailed architecture and implementation
+- **[Testing Protocol](TESTING_PROTOCOL.md)** - Comprehensive testing procedures
+- **[Publishing Guide](PUBLISHING.md)** - Project management and git workflow
+- **[Changelog](CHANGELOG.md)** - Version history and changes
 
 ## Development Interaction Rules
 
@@ -1016,7 +1021,7 @@ attachInterrupt(digitalPinToInterrupt(RIGHT_LIMIT_PIN), rightLimitISR, FALLING);
 
 Use `PARAMS` command for full parameter details with ranges and defaults.
 
-## Current Status Summary (v4.1.0 - 2025-02-02)
+## Current Status Summary (v4.1.1 - 2025-02-02)
 
 ### 🏆 Production-Ready System
 
@@ -1069,5 +1074,14 @@ Use `PARAMS` command for full parameter details with ranges and defaults.
 - **Enhanced Limits Tab**: Position limits configuration now requires homing first, displays detected physical range, and validates entries against hardware limits
 - **Configurable Home Position**: Home position is now configurable as a percentage of detected range (0-100%), ensuring it's always within bounds and adapts to mechanical installation
 - **Move to Home Button**: Added convenient "MOVE TO HOME" button in web interface that moves to the configured home position with a single click
+- **Auto-Home Options**: Added checkboxes for "Home on Boot" and "Home on E-Stop" for automatic initialization and recovery
+
+### 🔧 Bug Fixes (v4.1.1)
+
+- **Fixed Auto-Home on E-Stop**: 
+  - Now properly triggers from both IDLE and COMPLETE homing states
+  - Automatically clears limit fault before attempting to home
+  - Uses correct processMotionCommand() instead of direct function calls
+  - Added debug output to track auto-home state during 2-second delay
 
 The SkullStepperV4 system is now a complete, production-ready stepper control solution suitable for professional installations requiring reliable, safe, and user-friendly operation.

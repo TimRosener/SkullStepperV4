@@ -1,6 +1,6 @@
 # SkullStepperV4 Project Prompt
 ## Complete Project Context for AI Assistants
-### Version 4.1.0 - Production Ready
+### Version 4.1.1 - Production Ready
 ### Last Updated: 2025-02-02
 
 ## Project Overview
@@ -21,6 +21,8 @@ You are working on SkullStepperV4, a production-ready ESP32-S3 based stepper mot
 - ✅ Configurable home position (percentage-based)
 - ✅ Stress testing capabilities
 - ✅ Emergency stop functionality
+- ✅ Home on boot option
+- ✅ Home on E-stop option
 
 ## Architecture Overview
 
@@ -64,6 +66,8 @@ You are working on SkullStepperV4, a production-ready ESP32-S3 based stepper mot
 - Runtime configuration without restart
 - JSON import/export capability
 - Home position as percentage of range (0-100%)
+- Home on boot option for automatic initialization
+- Home on E-stop option for automatic recovery
 
 ### User Interfaces
 
@@ -96,6 +100,9 @@ You are working on SkullStepperV4, a production-ready ESP32-S3 based stepper mot
 3. **Configurable Home Position**: Percentage-based (0-100%) instead of fixed
 4. **Move to Home Button**: One-click return to configured position
 5. **Improved UI/UX**: Better feedback and disabled states
+6. **Home on Boot**: Checkbox option to automatically home the system on startup
+7. **Home on E-Stop**: Checkbox option to automatically home after emergency stop
+8. **Fixed Auto-Home on E-Stop**: Corrected implementation - now properly triggers from COMPLETE state and clears limit fault
 
 ## Code Organization
 
@@ -161,7 +168,13 @@ SkullStepperV4/
 
 ## Current Focus Areas
 
-The system is production-ready. Future enhancements could include:
+The system is production-ready. Recent bug fixes:
+- Fixed auto-home on E-stop to properly initiate homing sequence
+- Auto-home now correctly uses processMotionCommand() instead of direct function calls
+- Auto-home triggers correctly from both IDLE and COMPLETE homing states
+- Limit fault is automatically cleared to allow auto-home to proceed
+
+Future enhancements could include:
 - Multiple motion profiles
 - Position presets
 - Sequence programming
@@ -175,6 +188,7 @@ The system is production-ready. Future enhancements could include:
 3. **Limit Faults**: Require homing to clear
 4. **Configuration**: Saved to flash automatically
 5. **Web Interface**: Available at 192.168.4.1 in AP mode
+6. **Auto-Homing**: Can be configured for boot and E-stop recovery
 
 ## Getting Help
 

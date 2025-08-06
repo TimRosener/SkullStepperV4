@@ -1,0 +1,37 @@
+# Commit Message Template for SkullStepperV4
+#
+# Format: <type>: <subject>
+#
+# <body>
+#
+# <footer>
+#
+# Types:
+#   Add     - New feature or capability
+#   Fix     - Bug fix
+#   Update  - Enhancement or improvement  
+#   Refactor - Code restructuring
+#   Docs    - Documentation updates
+#   Test    - Test additions or changes
+#   Build   - Build system or dependencies
+#   Style   - Code style changes (formatting, etc)
+#
+# Subject: 50 characters max, imperative mood
+#
+# Body: Wrap at 72 characters. Explain what and why, not how.
+#
+# Footer: Reference issues, breaking changes, etc.
+#
+# Example:
+# --------
+# Add: Percentage-based home position configuration
+#
+# - Home position now configurable as 0-100% of detected range
+# - Added MOVEHOME command to move to configured position
+# - Web interface includes "Move to Home" button
+# - Configuration persists across reboots
+#
+# This change allows the system to adapt to any mechanical
+# installation without code modifications.
+#
+# Closes #15

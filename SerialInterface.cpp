@@ -315,6 +315,22 @@ namespace SerialInterface {
         return true;
       }
     }
+    else if (param == "autohomeonboot") {
+      config->autoHomeOnBoot = false;  // Default: off
+      if (SystemConfigMgr::commitChanges()) {
+        sendInfo("Auto-home on boot reset to default (OFF)");
+        sendOK();
+        return true;
+      }
+    }
+    else if (param == "autohomeonestop") {
+      config->autoHomeOnEstop = false;  // Default: off
+      if (SystemConfigMgr::commitChanges()) {
+        sendInfo("Auto-home on E-stop reset to default (OFF)");
+        sendOK();
+        return true;
+      }
+    }
     else if (param == "dmxstartchannel" || param == "dmxchannel") {
       if (SystemConfigMgr::setDMXConfig(DMX_START_CHANNEL, config->dmxScale, config->dmxOffset) && SystemConfigMgr::commitChanges()) {
         sendInfo("DMX start channel reset to default");
@@ -363,7 +379,7 @@ namespace SerialInterface {
       }
     }
     else {
-      sendError("Unknown parameter. Available: maxSpeed, acceleration, deceleration, jerk, homingSpeed, dmxStartChannel, dmxScale, dmxOffset, verbosity, dmx, motion");
+      sendError("Unknown parameter. Available: maxSpeed, acceleration, deceleration, jerk, homingSpeed, homePositionPercent, autoHomeOnBoot, autoHomeOnEstop, dmxStartChannel, dmxScale, dmxOffset, verbosity, dmx, motion");
       return false;
     }
     
@@ -718,20 +734,30 @@ namespace SerialInterface {
         return false;
       }
       
-      // Get the position limits
-      int32_t minPos, maxPos;
-      if (!StepperController::getPositionLimits(minPos, maxPos)) {
-        sendError("Unable to get position limits");
+      // Get the user-configured position limits from SystemConfig
+      SystemConfig* config = SystemConfigMgr::getConfig();
+      if (!config) {
+        sendError("Configuration not available");
         return false;
       }
       
-      // Calculate 10% and 90% positions
+      int32_t minPos = config->minPosition;
+      int32_t maxPos = config->maxPosition;
+      
+      // Validate that user limits are reasonable
+      if (maxPos <= minPos || (maxPos - minPos) < 100) {
+        sendError("Invalid user-configured position limits");
+        return false;
+      }
+      
+      // Calculate 10% and 90% positions of user-configured range
       int32_t range = maxPos - minPos;
       int32_t pos10 = minPos + (range * 10 / 100);
       int32_t pos90 = minPos + (range * 90 / 100);
       
       sendInfo("Starting range test...");
-      Serial.printf("INFO: Moving between positions %d (10%%) and %d (90%%)\n", pos10, pos90);
+      Serial.printf("INFO: Moving between positions %d (10%%) and %d (90%%) of user-configured range\n", pos10, pos90);
+      Serial.printf("INFO: User limits: %d to %d steps\n", minPos, maxPos);
       Serial.println("INFO: Press any key to stop test");
       
       // Start test sequence
@@ -744,20 +770,30 @@ namespace SerialInterface {
         return false;
       }
       
-      // Get the position limits
-      int32_t minPos, maxPos;
-      if (!StepperController::getPositionLimits(minPos, maxPos)) {
-        sendError("Unable to get position limits");
+      // Get the user-configured position limits from SystemConfig
+      SystemConfig* config = SystemConfigMgr::getConfig();
+      if (!config) {
+        sendError("Configuration not available");
         return false;
       }
       
-      // Use 10% to 90% of range for safety
+      int32_t minPos = config->minPosition;
+      int32_t maxPos = config->maxPosition;
+      
+      // Validate that user limits are reasonable
+      if (maxPos <= minPos || (maxPos - minPos) < 100) {
+        sendError("Invalid user-configured position limits");
+        return false;
+      }
+      
+      // Use 10% to 90% of user-configured range for safety
       int32_t range = maxPos - minPos;
       int32_t safeMin = minPos + (range * 10 / 100);
       int32_t safeMax = minPos + (range * 90 / 100);
       
       sendInfo("Starting random position test...");
-      Serial.printf("INFO: Will move to 10 random positions between %d and %d\n", safeMin, safeMax);
+      Serial.printf("INFO: Will move to 10 random positions between %d and %d (user-configured range)\n", safeMin, safeMax);
+      Serial.printf("INFO: User limits: %d to %d steps\n", minPos, maxPos);
       Serial.println("INFO: Press any key to stop test");
       
       // Start random test sequence
@@ -1046,6 +1082,32 @@ namespace SerialInterface {
         return true;
       } else {
         sendError("Failed to save home position percentage to flash");
+        return false;
+      }
+    }
+    else if (param == "autohomeonboot") {
+      bool enabled = (String(value).equalsIgnoreCase("true") || String(value) == "1" || String(value).equalsIgnoreCase("on"));
+      sendDebug("Setting auto-home on boot");
+      config->autoHomeOnBoot = enabled;
+      if (SystemConfigMgr::commitChanges()) {
+        sendInfo("Auto-home on boot updated successfully");
+        sendOK();
+        return true;
+      } else {
+        sendError("Failed to save auto-home on boot to flash");
+        return false;
+      }
+    }
+    else if (param == "autohomeonestop") {
+      bool enabled = (String(value).equalsIgnoreCase("true") || String(value) == "1" || String(value).equalsIgnoreCase("on"));
+      sendDebug("Setting auto-home on E-stop");
+      config->autoHomeOnEstop = enabled;
+      if (SystemConfigMgr::commitChanges()) {
+        sendInfo("Auto-home on E-stop updated successfully");
+        sendOK();
+        return true;
+      } else {
+        sendError("Failed to save auto-home on E-stop to flash");
         return false;
       }
     }
@@ -1483,6 +1545,10 @@ namespace SerialInterface {
     Serial.println("                      Speed used during homing sequence");
     Serial.println("  homePositionPercent Range: 0-100 %              Default: 50");
     Serial.println("                      Position to return to after homing (% of range)");
+    Serial.println("  autoHomeOnBoot      Boolean: true/false         Default: false");
+    Serial.println("                      Automatically home on system startup");
+    Serial.println("  autoHomeOnEstop     Boolean: true/false         Default: false");
+    Serial.println("                      Automatically home after E-stop/limit fault");
     
     Serial.println("\nDMX Parameters:");
     Serial.println("  dmxStartChannel     Range: 1-512                Default: 1");
@@ -1503,6 +1569,8 @@ namespace SerialInterface {
     Serial.println("  CONFIG SET acceleration 1500    # Set acceleration to 1500 steps/sec²");
     Serial.println("  CONFIG SET homingSpeed 1500     # Set homing speed to 1500 steps/sec");
     Serial.println("  CONFIG SET homePositionPercent 75  # Return to 75% of range after homing");
+    Serial.println("  CONFIG SET autoHomeOnBoot true  # Enable auto-homing on startup");
+    Serial.println("  CONFIG SET autoHomeOnEstop on   # Enable auto-homing after E-stop");
     Serial.println("  CONFIG SET dmxStartChannel 10   # Monitor DMX channel 10");
     Serial.println("  CONFIG SET dmxScale 5.0         # 5 steps per DMX unit");
     Serial.println("  CONFIG SET dmxOffset 1000       # Add 1000 steps offset");

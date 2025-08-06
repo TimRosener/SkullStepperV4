@@ -1,8 +1,8 @@
 // ============================================================================
 // File: skullstepperV4.ino - Thread-Safe Main Sketch with StepperController
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
-// Version: 4.0.0
-// Date: 2025-01-28
+// Version: 4.1.1
+// Date: 2025-02-02
 // Author: Tim Rosener
 // Description: Main Arduino sketch with complete system integration
 // License: MIT
@@ -43,7 +43,7 @@ void setup() {
   Serial.println();
   Serial.println("============================================================================");
   Serial.println("SkullStepperV4 - ESP32-S3 Thread-Safe Stepper Control");
-  Serial.println("Version: 4.0.0 - ODStepper Integration with Auto-Range Homing");
+  Serial.println("Version: 4.1.1 - Production Ready with Web Interface");
   Serial.println("Memory-Safe, Thread-Safe Architecture");
   Serial.println("============================================================================");
   
@@ -165,23 +165,70 @@ void setup() {
   #endif
   Serial.println("============================================================================");
   Serial.println("FULL COMMAND SYSTEM AVAILABLE:");
-  Serial.println("Motion: MOVE <pos>, HOME, STOP, ESTOP, ENABLE, DISABLE");
+  Serial.println("Motion: MOVE <pos>, MOVEHOME, HOME, STOP, ESTOP, ENABLE, DISABLE");
   Serial.println("Config: CONFIG, CONFIG SET <param> <value>, CONFIG RESET [param]");
-  Serial.println("Info: STATUS, HELP");
+  Serial.println("Info: STATUS, PARAMS, HELP");
   Serial.println("Interface: ECHO ON/OFF, VERBOSE 0-3, JSON ON/OFF, STREAM ON/OFF");
+  Serial.println("Testing: TEST (stress test), TEST2/RANDOMTEST (random positions)");
   Serial.println("System: Infrastructure test commands available");
   Serial.println("============================================================================");
   Serial.println("Type 'HELP' for complete command reference");
   Serial.println("Type 'STATUS' for system overview");
   Serial.println("Type 'CONFIG' to see all settings");
   Serial.println();
-  Serial.println("*** IMPORTANT: You must HOME the system before any movement! ***");
-  Serial.println("1. Type 'HOME' to run auto-range detection");
-  Serial.println("2. Wait for homing to complete");
-  Serial.println("3. Then use movement commands like 'MOVE 100'");
-  Serial.println();
-  Serial.println("Movement is blocked until homing establishes safe position limits.");
-  Serial.println();
+  
+  // ========================================================================
+  // Auto-Home on Boot (if enabled)
+  // ========================================================================
+  SystemConfig* config = SystemConfigMgr::getConfig();
+  if (config && config->autoHomeOnBoot) {
+    Serial.println("============================================================================");
+    Serial.println("AUTO-HOME ON BOOT ENABLED - Starting automatic homing sequence...");
+    Serial.println("============================================================================");
+    
+    // Queue home command
+    if (StepperController::startHoming()) {
+      Serial.println("✓ Homing sequence started");
+      Serial.println("Please wait for homing to complete...");
+      
+      // Wait for homing to complete with progress updates
+      uint32_t homingStartTime = millis();
+      uint8_t lastProgress = 0;
+      
+      while (StepperController::isHoming()) {
+        uint8_t progress = StepperController::getHomingProgress();
+        if (progress != lastProgress) {
+          Serial.printf("Homing progress: %d%%\n", progress);
+          lastProgress = progress;
+        }
+        delay(100);
+        
+        // Timeout after 120 seconds
+        if (millis() - homingStartTime > 120000) {
+          Serial.println("WARNING: Homing timeout - manual homing may be required");
+          break;
+        }
+      }
+      
+      if (StepperController::isHomed()) {
+        Serial.println("✓ Auto-homing completed successfully!");
+        Serial.println("System is ready for motion commands.");
+      } else {
+        Serial.println("✗ Auto-homing failed - manual homing required");
+      }
+    } else {
+      Serial.println("✗ Failed to start auto-homing sequence");
+    }
+    Serial.println();
+  } else {
+    Serial.println("*** IMPORTANT: You must HOME the system before any movement! ***");
+    Serial.println("1. Type 'HOME' to run auto-range detection");
+    Serial.println("2. Wait for homing to complete");
+    Serial.println("3. Then use movement commands like 'MOVE 100'");
+    Serial.println();
+    Serial.println("Movement is blocked until homing establishes safe position limits.");
+    Serial.println();
+  }
 }
 
 void loop() {

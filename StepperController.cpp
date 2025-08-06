@@ -1,10 +1,11 @@
 // ============================================================================
 // File: StepperController.cpp
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
-// Version: 4.0.0
-// Date: 2025-01-28
+// Version: 4.1.1
+// Date: 2025-02-02
 // Author: Tim Rosener
 // Description: Thread-safe stepper motor control implementation with ODStepper
+//              Fixed auto-home on E-stop to properly use processMotionCommand()
 // License: MIT
 //
 // CRITICAL: This module runs on Core 0 for real-time performance
@@ -120,6 +121,11 @@ static uint32_t g_homingPhaseStartTime = 0;
 static bool g_alarmState = false;
 static uint32_t g_lastAlarmCheck = 0;
 
+// Auto-home after E-stop
+static bool g_autoHomeRequested = false;
+static uint32_t g_autoHomeRequestTime = 0;
+static const uint32_t AUTO_HOME_DELAY_MS = 2000;  // 2 second delay after E-stop
+
 // ============================================================================
 // Interrupt Service Routines (MINIMAL!)
 // ============================================================================
@@ -153,19 +159,27 @@ static void processLeftLimit(bool currentReading, uint32_t currentTime) {
             g_leftLimitTriggered = false;  // Clear interrupt flag after processing
             
             if (g_leftLimitState) {
-                Serial.println("StepperController: Left limit ACTIVATED");
+            Serial.println("StepperController: Left limit ACTIVATED");
+            
+            // Handle based on current state
+            if (g_homingState != HomingState::FINDING_LEFT) {
+            // Emergency stop if not homing
+            if (g_stepper && g_stepper->isRunning()) {
+            // Use emergency stop for proper state handling
+            g_stepper->forceStop();
+            g_motionState = MotionState::IDLE;
+            SAFE_WRITE_STATUS(safetyState, SafetyState::EMERGENCY_STOP);
+            g_limitFaultActive = true;  // Latch the fault
+            Serial.println("StepperController: EMERGENCY STOP - Left limit hit!");
+            Serial.println("StepperController: FAULT LATCHED - Homing required to clear.");
                 
-                // Handle based on current state
-                if (g_homingState != HomingState::FINDING_LEFT) {
-                    // Emergency stop if not homing
-                    if (g_stepper && g_stepper->isRunning()) {
-                        // Use emergency stop for proper state handling
-                        g_stepper->forceStop();
-                        g_motionState = MotionState::IDLE;
-                        SAFE_WRITE_STATUS(safetyState, SafetyState::EMERGENCY_STOP);
-                        g_limitFaultActive = true;  // Latch the fault
-                        Serial.println("StepperController: EMERGENCY STOP - Left limit hit!");
-                        Serial.println("StepperController: FAULT LATCHED - Homing required to clear.");
+                    // Check if auto-home on E-stop is enabled
+                    SystemConfig* config = SystemConfigMgr::getConfig();
+                    if (config && config->autoHomeOnEstop) {
+                    Serial.println("StepperController: AUTO-HOME ON E-STOP enabled - Will start homing after delay...");
+                    g_autoHomeRequested = true;
+                        g_autoHomeRequestTime = millis();
+                        }
                     }
                 }
             } else {
@@ -197,19 +211,27 @@ static void processRightLimit(bool currentReading, uint32_t currentTime) {
             g_rightLimitTriggered = false;  // Clear interrupt flag after processing
             
             if (g_rightLimitState) {
-                Serial.println("StepperController: Right limit ACTIVATED");
+            Serial.println("StepperController: Right limit ACTIVATED");
+            
+            // Handle based on current state
+            if (g_homingState != HomingState::FINDING_RIGHT) {
+            // Emergency stop if not homing
+            if (g_stepper && g_stepper->isRunning()) {
+            // Use emergency stop for proper state handling
+            g_stepper->forceStop();
+            g_motionState = MotionState::IDLE;
+            SAFE_WRITE_STATUS(safetyState, SafetyState::EMERGENCY_STOP);
+            g_limitFaultActive = true;  // Latch the fault
+            Serial.println("StepperController: EMERGENCY STOP - Right limit hit!");
+            Serial.println("StepperController: FAULT LATCHED - Homing required to clear.");
                 
-                // Handle based on current state
-                if (g_homingState != HomingState::FINDING_RIGHT) {
-                    // Emergency stop if not homing
-                    if (g_stepper && g_stepper->isRunning()) {
-                        // Use emergency stop for proper state handling
-                        g_stepper->forceStop();
-                        g_motionState = MotionState::IDLE;
-                        SAFE_WRITE_STATUS(safetyState, SafetyState::EMERGENCY_STOP);
-                        g_limitFaultActive = true;  // Latch the fault
-                        Serial.println("StepperController: EMERGENCY STOP - Right limit hit!");
-                        Serial.println("StepperController: FAULT LATCHED - Homing required to clear.");
+                    // Check if auto-home on E-stop is enabled
+                        SystemConfig* config = SystemConfigMgr::getConfig();
+                        if (config && config->autoHomeOnEstop) {
+                            Serial.println("StepperController: AUTO-HOME ON E-STOP enabled - Will start homing after delay...");
+                            g_autoHomeRequested = true;
+                            g_autoHomeRequestTime = millis();
+                        }
                     }
                 }
             } else {
@@ -331,25 +353,51 @@ static void updateHomingSequence() {
                 // Back off from limit
                 g_stepper->move(-BACKOFF_STEPS);
             } else if (g_stepper->isRunning() && !g_rightLimitState) {
-                // Finished backing off, set operating limits
+                // Finished backing off, set physical operating limits
                 g_maxPosition = g_stepper->getCurrentPosition() - POSITION_MARGIN;
                 g_positionLimitsValid = true;
                 
-                // Calculate home position based on configured percentage
+                // Get configuration
                 SystemConfig* config = SystemConfigMgr::getConfig();
-                float homePercent = config ? config->homePositionPercent : 50.0f;
-                int32_t range = g_maxPosition - g_minPosition;
-                int32_t homePosition = g_minPosition + (int32_t)((range * homePercent) / 100.0f);
-                
-                // Move to configured home position
-                g_stepper->setSpeedInHz(g_currentProfile.maxSpeed);
-                g_stepper->moveTo(homePosition);
-                g_homingState = HomingState::MOVING_TO_CENTER;
-                
-                Serial.printf("StepperController: Operating range: %d to %d steps\n", 
-                             g_minPosition, g_maxPosition);
-                Serial.printf("StepperController: Moving to home position: %d (%.1f%% of range)\n",
-                             homePosition, homePercent);
+                if (config) {
+                    // If user limits are not set or invalid, set them to physical limits
+                    if (config->minPosition < g_minPosition || config->minPosition >= g_maxPosition) {
+                        config->minPosition = g_minPosition;
+                        Serial.printf("StepperController: Setting user minPosition to physical limit: %d\n", g_minPosition);
+                    }
+                    if (config->maxPosition > g_maxPosition || config->maxPosition <= g_minPosition) {
+                        config->maxPosition = g_maxPosition;
+                        Serial.printf("StepperController: Setting user maxPosition to physical limit: %d\n", g_maxPosition);
+                    }
+                    
+                    // Save the updated configuration
+                    SystemConfigMgr::saveToEEPROM();
+                    
+                    // Calculate home position based on configured percentage
+                    float homePercent = config->homePositionPercent;
+                    int32_t range = g_maxPosition - g_minPosition;
+                    int32_t homePosition = g_minPosition + (int32_t)((range * homePercent) / 100.0f);
+                    
+                    // Move to configured home position
+                    g_stepper->setSpeedInHz(g_currentProfile.maxSpeed);
+                    g_stepper->moveTo(homePosition);
+                    g_homingState = HomingState::MOVING_TO_CENTER;
+                    
+                    Serial.printf("StepperController: Physical range: %d to %d steps\n", 
+                                 g_minPosition, g_maxPosition);
+                    Serial.printf("StepperController: User-configured range: %d to %d steps\n",
+                                 config->minPosition, config->maxPosition);
+                    Serial.printf("StepperController: Moving to home position: %d (%.1f%% of range)\n",
+                                 homePosition, homePercent);
+                } else {
+                    // No config, just use center position
+                    int32_t homePosition = (g_minPosition + g_maxPosition) / 2;
+                    g_stepper->setSpeedInHz(g_currentProfile.maxSpeed);
+                    g_stepper->moveTo(homePosition);
+                    g_homingState = HomingState::MOVING_TO_CENTER;
+                    
+                    Serial.printf("StepperController: No config available, moving to center: %d\n", homePosition);
+                }
             }
             break;
             
@@ -563,6 +611,41 @@ void stepperControllerTask(void* parameter) {
             checkAlarmStatus();
         }
         
+        // ====================================================================
+        // Handle Auto-Home Request After E-Stop
+        // ====================================================================
+        if (g_autoHomeRequested) {
+            // Debug output to track auto-home state
+            static uint32_t lastDebugTime = 0;
+            if (millis() - lastDebugTime > 1000) {  // Print debug every second
+                Serial.printf("StepperController: Auto-home debug - requested=%d, running=%d, homingState=%d, timeElapsed=%lu, limitFault=%d\n",
+                             g_autoHomeRequested, g_stepper->isRunning(), (int)g_homingState, 
+                             millis() - g_autoHomeRequestTime, g_limitFaultActive);
+                lastDebugTime = millis();
+            }
+            
+            if (!g_stepper->isRunning() && 
+                (g_homingState == HomingState::IDLE || g_homingState == HomingState::COMPLETE) &&
+                (millis() - g_autoHomeRequestTime >= AUTO_HOME_DELAY_MS)) {
+                
+                Serial.println("StepperController: Starting automatic homing after E-stop...");
+                
+                // Clear the limit fault first to allow homing
+                if (g_limitFaultActive) {
+                    Serial.println("StepperController: Clearing limit fault to allow auto-homing...");
+                    g_limitFaultActive = false;
+                }
+                
+                g_autoHomeRequested = false;
+                
+                // Create a HOME command and process it directly
+                MotionCommand homeCmd;
+                homeCmd.type = CommandType::HOME;
+                homeCmd.timestamp = millis();
+                processMotionCommand(homeCmd);
+            }
+        }
+        
         // Precise 2ms timing
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -742,10 +825,32 @@ bool processMotionCommand(const MotionCommand& cmd) {
     switch (cmd.type) {
         case CommandType::MOVE_ABSOLUTE:
             if (g_positionLimitsValid && cmd.profile.enableLimits) {
-                // Clamp to valid range
-                int32_t targetPos = constrain(cmd.profile.targetPosition, 
-                                            g_minPosition, g_maxPosition);
-                g_stepper->moveTo(targetPos);
+                // Get user-configured limits from SystemConfig
+                SystemConfig* config = SystemConfigMgr::getConfig();
+                if (config) {
+                    // Use user-configured limits, not physical limits
+                    int32_t userMinPos = config->minPosition;
+                    int32_t userMaxPos = config->maxPosition;
+                    
+                    // Ensure user limits are within physical limits
+                    userMinPos = constrain(userMinPos, g_minPosition, g_maxPosition);
+                    userMaxPos = constrain(userMaxPos, g_minPosition, g_maxPosition);
+                    
+                    // Clamp target to user-configured range
+                    int32_t targetPos = constrain(cmd.profile.targetPosition, 
+                                                userMinPos, userMaxPos);
+                    g_stepper->moveTo(targetPos);
+                    
+                    if (targetPos != cmd.profile.targetPosition) {
+                        Serial.printf("StepperController: Move clamped from %d to %d (user limits: %d-%d)\n", 
+                                    cmd.profile.targetPosition, targetPos, userMinPos, userMaxPos);
+                    }
+                } else {
+                    // Fallback to physical limits if config not available
+                    int32_t targetPos = constrain(cmd.profile.targetPosition, 
+                                                g_minPosition, g_maxPosition);
+                    g_stepper->moveTo(targetPos);
+                }
             } else {
                 // No limits or limits disabled
                 g_stepper->moveTo(cmd.profile.targetPosition);
@@ -758,7 +863,28 @@ bool processMotionCommand(const MotionCommand& cmd) {
             {
                 int32_t targetPos = g_currentPosition + cmd.profile.targetPosition;
                 if (g_positionLimitsValid && cmd.profile.enableLimits) {
-                    targetPos = constrain(targetPos, g_minPosition, g_maxPosition);
+                    // Get user-configured limits from SystemConfig
+                    SystemConfig* config = SystemConfigMgr::getConfig();
+                    if (config) {
+                        // Use user-configured limits, not physical limits
+                        int32_t userMinPos = config->minPosition;
+                        int32_t userMaxPos = config->maxPosition;
+                        
+                        // Ensure user limits are within physical limits
+                        userMinPos = constrain(userMinPos, g_minPosition, g_maxPosition);
+                        userMaxPos = constrain(userMaxPos, g_minPosition, g_maxPosition);
+                        
+                        // Clamp target to user-configured range
+                        targetPos = constrain(targetPos, userMinPos, userMaxPos);
+                        
+                        if (targetPos != (g_currentPosition + cmd.profile.targetPosition)) {
+                            Serial.printf("StepperController: Relative move clamped to %d (user limits: %d-%d)\n", 
+                                        targetPos, userMinPos, userMaxPos);
+                        }
+                    } else {
+                        // Fallback to physical limits if config not available
+                        targetPos = constrain(targetPos, g_minPosition, g_maxPosition);
+                    }
                 }
                 g_stepper->moveTo(targetPos);
                 success = true;
@@ -973,6 +1099,7 @@ bool moveTo(int32_t position) {
     cmd.type = CommandType::MOVE_ABSOLUTE;
     cmd.profile = g_currentProfile;
     cmd.profile.targetPosition = position;
+    cmd.profile.enableLimits = true;  // Ensure limits are enforced
     cmd.timestamp = millis();
     
     return xQueueSend(g_motionCommandQueue, &cmd, pdMS_TO_TICKS(10)) == pdTRUE;
@@ -983,6 +1110,7 @@ bool move(int32_t steps) {
     cmd.type = CommandType::MOVE_RELATIVE;
     cmd.profile = g_currentProfile;
     cmd.profile.targetPosition = steps;
+    cmd.profile.enableLimits = true;  // Ensure limits are enforced
     cmd.timestamp = millis();
     
     return xQueueSend(g_motionCommandQueue, &cmd, pdMS_TO_TICKS(10)) == pdTRUE;

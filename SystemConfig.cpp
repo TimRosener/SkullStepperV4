@@ -51,6 +51,8 @@ namespace SystemConfigMgr {
     g_systemConfig.minPosition = MIN_POSITION_STEPS;
     g_systemConfig.maxPosition = MAX_POSITION_STEPS;
     g_systemConfig.homingSpeed = 940.0f;  // Default homing speed (steps/sec)
+    g_systemConfig.autoHomeOnBoot = false;  // Default: manual homing required
+    g_systemConfig.autoHomeOnEstop = false;  // Default: manual homing after E-stop
     
     // DMX configuration
     g_systemConfig.dmxStartChannel = DMX_START_CHANNEL;
@@ -102,6 +104,8 @@ namespace SystemConfigMgr {
     g_systemConfig.minPosition = g_preferences.getInt("minPos", MIN_POSITION_STEPS);
     g_systemConfig.maxPosition = g_preferences.getInt("maxPos", MAX_POSITION_STEPS);
     g_systemConfig.homingSpeed = g_preferences.getFloat("homingSpeed", 940.0f);
+    g_systemConfig.autoHomeOnBoot = g_preferences.getBool("autoHomeOnBoot", false);
+    g_systemConfig.autoHomeOnEstop = g_preferences.getBool("autoHomeOnEstop", false);
     
     // Load DMX configuration
     g_systemConfig.dmxStartChannel = g_preferences.getUShort("dmxChannel", DMX_START_CHANNEL);
@@ -137,6 +141,8 @@ namespace SystemConfigMgr {
     Serial.printf("    Min Position: %d steps\n", g_systemConfig.minPosition);
     Serial.printf("    Max Position: %d steps\n", g_systemConfig.maxPosition);
     Serial.printf("    Homing Speed: %.1f steps/sec\n", g_systemConfig.homingSpeed);
+    Serial.printf("    Auto-Home on Boot: %s\n", g_systemConfig.autoHomeOnBoot ? "ON" : "OFF");
+    Serial.printf("    Auto-Home on E-Stop: %s\n", g_systemConfig.autoHomeOnEstop ? "ON" : "OFF");
     
     Serial.printf("  DMX Configuration:\n");
     Serial.printf("    Start Channel: %d\n", g_systemConfig.dmxStartChannel);
@@ -182,6 +188,8 @@ namespace SystemConfigMgr {
     g_preferences.putInt("minPos", g_systemConfig.minPosition);
     g_preferences.putInt("maxPos", g_systemConfig.maxPosition);
     g_preferences.putFloat("homingSpeed", g_systemConfig.homingSpeed);
+    g_preferences.putBool("autoHomeOnBoot", g_systemConfig.autoHomeOnBoot);
+    g_preferences.putBool("autoHomeOnEstop", g_systemConfig.autoHomeOnEstop);
     
     // Save DMX configuration
     g_preferences.putUShort("dmxChannel", g_systemConfig.dmxStartChannel);

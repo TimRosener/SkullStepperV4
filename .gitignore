@@ -1,0 +1,69 @@
+# SkullStepperV4 .gitignore
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Thumbnails
+Thumbs.db
+ehthumbs.db
+
+# Arduino build files
+build/
+*.hex
+*.elf
+*.bin
+
+# IDE specific files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Log files
+*.log
+
+# Configuration files that might contain sensitive data
+# (uncomment if you have local config files)
+# config.local.h
+# secrets.h
+
+# Binary files
+*.o
+*.a
+*.so
+*.dll
+*.exe
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Development notes (if you want to keep private notes)
+NOTES.md
+TODO.md
+private/
+
+# Serial output captures
+*.serial
+*.capture
+
+# Test data
+test_data/
+test_results/
