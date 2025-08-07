@@ -353,9 +353,9 @@ const MotionControl = {
 ```
 
 #### Configuration Editor
-- **Motion Parameters**: Sliders with live preview
-- **DMX Settings**: Channel, scale, offset inputs
-- **Position Limits**: Min/Max with validation
+- **Motion & Limits Tab**: All motion-related parameters including basic speeds, position limits, and advanced settings (jerk, emergency deceleration)
+- **DMX Tab**: All DMX-related settings including channel, scale, offset, and timeout
+- **Single Homing Warning**: Consolidated message stating configuration can be changed but movement requires homing
 - **Save/Load/Reset**: Config management buttons
 
 ### Responsive Design
@@ -525,6 +525,14 @@ bool WebInterface::validateCommand(const JsonDocument& cmd) {
 - [x] Added connection status indicators
 - [x] Created responsive design for mobile
 - [x] Performance tested with multiple clients
+
+### ✅ Phase 5.6: UI Improvements (COMPLETE - v4.1.4-4.1.5)
+- [x] Consolidated homing warnings into single message
+- [x] Reorganized configuration tabs (removed Advanced tab)
+- [x] Moved motion-related settings to Motion & Limits tab
+- [x] Moved DMX timeout to DMX tab with other DMX settings
+- [x] Allowed all configurations to be changed without homing
+- [x] Fixed Auto-Home checkbox visibility - now always accessible
 
 ---
 

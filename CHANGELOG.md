@@ -5,6 +5,27 @@ All notable changes to the SkullStepperV4 project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.5] - 2025-02-02
+
+### Fixed
+- Auto-Home checkboxes now always visible in web interface
+- Moved "Auto-Home on Boot" and "Auto-Home on E-Stop" options to new "Homing Options" section
+- Checkboxes no longer hidden when system is not homed
+
+## [4.1.4] - 2025-02-02
+
+### Changed
+- Web interface now shows single consolidated homing warning message
+- Configuration parameters can now be changed without homing (only movement is restricted)
+- Reorganized configuration tabs: removed Advanced tab, redistributed settings logically
+- Motion-related advanced settings (jerk, emergency deceleration) moved to Motion & Limits tab
+- DMX timeout setting moved to DMX tab with other DMX parameters
+
+### Improved
+- Cleaner web interface with reduced redundancy
+- More logical organization of configuration parameters
+- Better user experience with clear messaging about homing requirements
+
 ## [4.1.3] - 2025-02-02
 
 ### Fixed

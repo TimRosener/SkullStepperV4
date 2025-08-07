@@ -111,7 +111,7 @@ String WebInterface::getIndexHTML() {
                     <button class="btn btn-test" onclick="sendCommand('test')" title="Run continuous stress test (10% to 90% of range)">STRESS TEST</button>
                     <button class="btn btn-test" onclick="sendCommand('test2')" title="Move to 10 random positions within safe range">RANDOM MOVES</button>
                 </div>
-                <p class="test-info">Tests require homing first. Use STOP or E-STOP buttons to stop tests.</p>
+                <p class="test-info">Use STOP or E-STOP buttons to stop tests.</p>
             </div>
         </div>
         
@@ -148,23 +148,16 @@ String WebInterface::getIndexHTML() {
         <div class="panel">
             <h2>Configuration</h2>
             
-            <!-- Tab buttons - removed Limits tab -->
+            <!-- Tab buttons -->
             <div class="config-tabs">
                 <button class="tab-btn active" onclick="showConfigTab('motion')">Motion & Limits</button>
                 <button class="tab-btn" onclick="showConfigTab('dmx')">DMX</button>
-                <button class="tab-btn" onclick="showConfigTab('advanced')">Advanced</button>
             </div>
             
             <!-- Motion Configuration Tab - now includes Position Limits -->
             <div id="motion-tab" class="config-tab active">
                 <h3>Motion Parameters</h3>
                 <div id="homingSpeedOnly" style="display:block;">
-                    <div class="homing-notice" style="background: rgba(255,102,0,0.1); padding: 15px; border-radius: 5px; margin-bottom: 15px;">
-                        <p style="margin: 0; color: #ff6600; font-weight: bold; text-align: center;">
-                            ⚠️ System must be homed before motion parameters can be adjusted.
-                            <br>Only homing speed can be configured before homing.
-                        </p>
-                    </div>
                     <div class="config-item">
                         <label for="homingSpeed">Homing Speed:</label>
                         <input type="range" id="homingSpeed" min="100" max="10000" step="100">
@@ -190,12 +183,6 @@ String WebInterface::getIndexHTML() {
                 </div>
                 
                 <h3 style="margin-top: 25px;">Position Limits</h3>
-                <div id="limitsNotHomed" class="homing-notice" style="display:none;">
-                    <p style="color: #ff6600; font-weight: bold; text-align: center; padding: 20px; background: rgba(255,102,0,0.1); border-radius: 5px;">
-                        ⚠️ System must be homed before position limits can be configured.
-                        <br>Use the HOME button to detect physical travel limits.
-                    </p>
-                </div>
                 <div id="limitsContent" style="display:none;">
                     <div class="limits-info" style="background: rgba(0,212,255,0.1); padding: 15px; border-radius: 5px; margin-bottom: 15px;">
                         <p style="margin: 0 0 10px 0;"><strong>Detected Physical Range:</strong></p>
@@ -221,20 +208,36 @@ String WebInterface::getIndexHTML() {
                         <span id="homePositionPercentValue">50</span>% of range
                         <small class="param-info">Position to return to after homing (0% = left limit, 100% = right limit)</small>
                     </div>
-                    <div class="config-item" style="margin-top: 20px;">
-                        <label style="display: flex; align-items: center; cursor: pointer;">
-                            <input type="checkbox" id="autoHomeOnBoot" style="margin-right: 10px; width: auto;">
-                            Auto-Home on Boot
-                        </label>
-                        <small class="param-info">Automatically perform homing sequence when system starts up</small>
-                    </div>
-                    <div class="config-item">
-                        <label style="display: flex; align-items: center; cursor: pointer;">
-                            <input type="checkbox" id="autoHomeOnEstop" style="margin-right: 10px; width: auto;">
-                            Auto-Home on E-Stop
-                        </label>
-                        <small class="param-info">Automatically re-home after emergency stop or unexpected limit switch activation</small>
-                    </div>
+                </div>
+                
+                <h3 style="margin-top: 25px;">Advanced Motion Settings</h3>
+                <div class="config-item">
+                    <label for="jerk">Jerk Limitation:</label>
+                    <input type="range" id="jerk" min="0" max="50000" step="1000">
+                    <span id="jerkValue">--</span> steps/sec³
+                    <small class="param-info">Controls smoothness of acceleration changes (0-50000)</small>
+                </div>
+                <div class="config-item">
+                    <label for="emergencyDeceleration">Emergency Deceleration:</label>
+                    <input type="range" id="emergencyDeceleration" min="100" max="50000" step="100">
+                    <span id="emergencyDecelerationValue">--</span> steps/sec²
+                    <small class="param-info">Deceleration rate for emergency stops (100-50000)</small>
+                </div>
+                
+                <h3 style="margin-top: 25px;">Homing Options</h3>
+                <div class="config-item">
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="autoHomeOnBoot" style="margin-right: 10px; width: auto;">
+                        Auto-Home on Boot
+                    </label>
+                    <small class="param-info">Automatically perform homing sequence when system starts up</small>
+                </div>
+                <div class="config-item">
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="autoHomeOnEstop" style="margin-right: 10px; width: auto;">
+                        Auto-Home on E-Stop
+                    </label>
+                    <small class="param-info">Automatically re-home after emergency stop or unexpected limit switch activation</small>
                 </div>
             </div>
             
@@ -253,30 +256,13 @@ String WebInterface::getIndexHTML() {
                     <label for="dmxOffset">DMX Offset:</label>
                     <input type="number" id="dmxOffset" step="1" placeholder="Position offset in steps">
                 </div>
-            </div>
-
-            
-            <!-- Advanced Configuration Tab -->
-            <div id="advanced-tab" class="config-tab">
-                <h3>Advanced Parameters</h3>
-                <div class="config-item">
-                    <label for="jerk">Jerk Limitation:</label>
-                    <input type="range" id="jerk" min="0" max="50000" step="1000">
-                    <span id="jerkValue">--</span> steps/sec³
-                    <small class="param-info">Controls smoothness of acceleration changes (0-50000)</small>
-                </div>
-                <div class="config-item">
-                    <label for="emergencyDeceleration">Emergency Deceleration:</label>
-                    <input type="range" id="emergencyDeceleration" min="100" max="50000" step="100">
-                    <span id="emergencyDecelerationValue">--</span> steps/sec²
-                    <small class="param-info">Deceleration rate for emergency stops (100-50000)</small>
-                </div>
                 <div class="config-item">
                     <label for="dmxTimeout">DMX Timeout:</label>
                     <input type="number" id="dmxTimeout" min="100" max="60000" step="100" placeholder="Milliseconds">
                     <small class="param-info">Time before DMX signal loss is detected (100-60000 ms)</small>
                 </div>
             </div>
+
             
             <button class="btn btn-primary" onclick="applyConfig()">Apply Changes</button>
             <button class="btn btn-secondary" onclick="loadConfig()">Reload</button>
@@ -959,19 +945,14 @@ function applyConfig() {
     
     if (activeTab === 'motion-tab') {
         // Motion & Limits tab
-        // Only include maxSpeed and acceleration if the system is homed
-        if (detectedLimits) {
-            config.maxSpeed = parseInt(document.getElementById('maxSpeed').value);
-            config.acceleration = parseInt(document.getElementById('acceleration').value);
-            // Get homing speed from whichever slider is visible
-            const homingSpeedAlso = document.getElementById('homingSpeedAlso');
-            if (homingSpeedAlso && homingSpeedAlso.offsetParent !== null) {
-                config.homingSpeed = parseInt(homingSpeedAlso.value);
-            } else {
-                config.homingSpeed = parseInt(document.getElementById('homingSpeed').value);
-            }
+        // Always include all motion parameters - configurations can be changed anytime
+        config.maxSpeed = parseInt(document.getElementById('maxSpeed').value);
+        config.acceleration = parseInt(document.getElementById('acceleration').value);
+        // Get homing speed from whichever slider is visible
+        const homingSpeedAlso = document.getElementById('homingSpeedAlso');
+        if (homingSpeedAlso && homingSpeedAlso.offsetParent !== null) {
+            config.homingSpeed = parseInt(homingSpeedAlso.value);
         } else {
-            // Not homed - only send homing speed
             config.homingSpeed = parseInt(document.getElementById('homingSpeed').value);
         }
         
@@ -990,25 +971,20 @@ function applyConfig() {
                 alert('Position range must be at least 100 steps. Please adjust the percentages.');
                 return;
             }
-        } else if (document.getElementById('minPositionPercent').value || 
-                   document.getElementById('maxPositionPercent').value || 
-                   document.getElementById('homePositionPercent').value) {
-            alert('System must be homed before configuring position limits.');
-            return;
         }
         
         // Include auto-home settings
         config.autoHomeOnBoot = document.getElementById('autoHomeOnBoot').checked;
         config.autoHomeOnEstop = document.getElementById('autoHomeOnEstop').checked;
+        
+        // Include advanced motion settings (now part of Motion & Limits tab)
+        config.jerk = parseInt(document.getElementById('jerk').value);
+        config.emergencyDeceleration = parseInt(document.getElementById('emergencyDeceleration').value);
     } else if (activeTab === 'dmx-tab') {
-        // DMX tab
+        // DMX tab - now includes DMX timeout
         config.dmxChannel = parseInt(document.getElementById('dmxChannel').value);
         config.dmxScale = parseFloat(document.getElementById('dmxScale').value);
         config.dmxOffset = parseInt(document.getElementById('dmxOffset').value);
-    } else if (activeTab === 'advanced-tab') {
-        // Advanced tab
-        config.jerk = parseInt(document.getElementById('jerk').value);
-        config.emergencyDeceleration = parseInt(document.getElementById('emergencyDeceleration').value);
         config.dmxTimeout = parseInt(document.getElementById('dmxTimeout').value);
     }
     
@@ -1212,7 +1188,6 @@ document.getElementById('positionInput').addEventListener('keypress', (e) => {
 
 // Update limits display based on homing status
 function updateLimitsDisplay() {
-    const limitsNotHomed = document.getElementById('limitsNotHomed');
     const limitsContent = document.getElementById('limitsContent');
     const minPercentInput = document.getElementById('minPositionPercent');
     const maxPercentInput = document.getElementById('maxPositionPercent');
@@ -1223,8 +1198,7 @@ function updateLimitsDisplay() {
     const allMotionParams = document.getElementById('allMotionParams');
     
     if (detectedLimits) {
-        // System is homed - show limits controls and all motion params
-        limitsNotHomed.style.display = 'none';
+        // System is homed - show all controls
         limitsContent.style.display = 'block';
         homingSpeedOnly.style.display = 'none';
         allMotionParams.style.display = 'block';
@@ -1239,13 +1213,12 @@ function updateLimitsDisplay() {
         maxPercentInput.disabled = false;
         homePercentInput.disabled = false;
     } else {
-        // System not homed - show warning and only homing speed
-        limitsNotHomed.style.display = 'block';
+        // System not homed - show all controls but position limits section is hidden
         limitsContent.style.display = 'none';
-        homingSpeedOnly.style.display = 'block';
-        allMotionParams.style.display = 'none';
+        homingSpeedOnly.style.display = 'none';
+        allMotionParams.style.display = 'block';
         
-        // Disable inputs
+        // Disable position limit inputs only
         minPercentInput.disabled = true;
         maxPercentInput.disabled = true;
         homePercentInput.disabled = true;
@@ -1259,8 +1232,8 @@ function showHomingRequired() {
     if (!warning) {
         warning = document.createElement('div');
         warning.id = 'homingWarning';
-        warning.style.cssText = 'background: #ff6600; color: white; padding: 10px; text-align: center; font-weight: bold; margin: 10px 0;';
-        warning.innerHTML = '⚠️ HOMING REQUIRED - Use HOME button to establish position limits before movement';
+        warning.style.cssText = 'background: #ff6600; color: white; padding: 15px; text-align: center; font-weight: bold; margin: 20px 0; border-radius: 5px;';
+        warning.innerHTML = '⚠️ HOMING REQUIRED - No movement is allowed until homing is completed, but all the configurations can be changed.';
         document.querySelector('.container').insertBefore(warning, document.querySelector('.panel'));
     }
     warning.style.display = 'block';
@@ -1325,6 +1298,8 @@ function disableMovementControls() {
         btn.disabled = true;
         btn.style.opacity = '0.5';
     });
+    
+    // Note: We do NOT disable configuration controls - they can be changed anytime
 }
 
 function enableMovementControls() {
@@ -2238,7 +2213,7 @@ void WebInterface::getSystemStatus(JsonDocument& doc) {
     doc["config"]["autoHomeOnEstop"] = config->autoHomeOnEstop;
     
     // Add system information
-    doc["systemInfo"]["version"] = "4.1.0";
+    doc["systemInfo"]["version"] = "4.1.5";
     doc["systemInfo"]["hardware"] = "ESP32-S3-WROOM-1";
     doc["systemInfo"]["uptime"] = millis();
     doc["systemInfo"]["freeHeap"] = ESP.getFreeHeap();
@@ -2276,7 +2251,7 @@ void WebInterface::getSystemConfig(JsonDocument& doc) {
 }
 
 void WebInterface::getSystemInfo(JsonDocument& doc) {
-    doc["version"] = "4.1.0";
+    doc["version"] = "4.1.5";
     doc["hardware"] = "ESP32-S3-WROOM-1";
     doc["uptime"] = millis();
     doc["freeHeap"] = ESP.getFreeHeap();

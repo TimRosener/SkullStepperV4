@@ -31,10 +31,19 @@
 
 ### Controls
 - **HOME** - Run homing sequence
-- **Position Slider** - Direct position control
+- **Position Input** - Enter target position
 - **Move to Home** - One-click home return
+- **Jog Buttons** - Move in steps (±10, ±100, ±1000)
 - **STOP** - Stop motion
-- **TEST/TEST2** - Run tests
+- **E-STOP** - Emergency stop
+- **TEST** - Continuous stress test
+- **RANDOM MOVES** - Test 10 random positions
+
+### Configuration
+- **Motion & Limits Tab** - All motion parameters and limits
+- **DMX Tab** - All DMX-related settings
+- Configuration can be changed without homing
+- Only movement requires homing
 
 ## Safety
 
@@ -85,4 +94,4 @@
 - **EMERGENCY_STOP** - E-stop active
 
 ---
-*Version 4.1.0 - Production Ready*
+*Version 4.1.5 - Production Ready*

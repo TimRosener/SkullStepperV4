@@ -63,7 +63,7 @@ echo "--------------------------------------------"
 FILES_TO_CHECK=(
     "SkullStepperV4.ino|Version: [0-9]+\.[0-9]+\.[0-9]+|Version: $CURRENT_VERSION"
     "project_prompt.md|### Version [0-9]+\.[0-9]+\.[0-9]+|### Version $CURRENT_VERSION"
-    "README.md|Version [0-9]+\.[0-9]+\.[0-9]+|Version $CURRENT_VERSION"
+    "README.md|\*\*Version\*\*: [0-9]+\.[0-9]+\.[0-9]+|**Version**: $CURRENT_VERSION"
     "StepperController.cpp|Version: [0-9]+\.[0-9]+\.[0-9]+|Version: $CURRENT_VERSION"
     "SerialInterface.cpp|Version: [0-9]+\.[0-9]+\.[0-9]+|Version: $CURRENT_VERSION"
     "WebInterface.cpp|\"version\": \"[0-9]+\.[0-9]+\.[0-9]+\"|\"version\": \"$CURRENT_VERSION\""
@@ -71,6 +71,7 @@ FILES_TO_CHECK=(
     "SafetyMonitor.cpp|Version: [0-9]+\.[0-9]+\.[0-9]+|Version: $CURRENT_VERSION"
     "DMXReceiver.cpp|Version: [0-9]+\.[0-9]+\.[0-9]+|Version: $CURRENT_VERSION"
     "GlobalInfrastructure.cpp|Version: [0-9]+\.[0-9]+\.[0-9]+|Version: $CURRENT_VERSION"
+    "QUICK_REFERENCE.md|\*Version [0-9]+\.[0-9]+\.[0-9]+|*Version $CURRENT_VERSION"
 )
 
 VERSION_UPDATED=false
