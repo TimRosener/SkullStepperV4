@@ -26,8 +26,8 @@
 // ----------------------------------------------------------------------------
 // DMX Interface (MAX485) Pins
 // ----------------------------------------------------------------------------
-#define DMX_RO_PIN              4    // GPIO 4 (UART2 RX)
-#define DMX_DI_PIN              6    // GPIO 6 (UART2 TX)
+#define DMX_RO_PIN              6    // GPIO 6 (UART2 RX) - SWAPPED
+#define DMX_DI_PIN              4    // GPIO 4 (UART2 TX) - SWAPPED
 #define DMX_DE_RE_PIN           5    // GPIO 5 (Direction control - DE/RE tied together)
 
 // ----------------------------------------------------------------------------

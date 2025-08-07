@@ -12,6 +12,7 @@
 #include "SerialInterface.h"
 #include "SystemConfig.h"
 #include "StepperController.h"
+#include "DMXReceiver.h"
 #include <ArduinoJson.h>
 #include <esp_random.h>
 
@@ -762,6 +763,273 @@ namespace SerialInterface {
       
       // Start test sequence
       return startRangeTest(pos10, pos90);
+    }
+    else if (mainCmd == "DMX") {
+      // Temporary DMX monitoring command for testing
+      if (params == "STATUS") {
+        Serial.println("\n=== DMX Status ===");
+        Serial.printf("Signal Present: %s\n", DMXReceiver::isSignalPresent() ? "YES" : "NO");
+        Serial.printf("Base Channel: %d\n", DMXReceiver::getBaseChannel());
+        
+        uint32_t lastUpdate = DMXReceiver::getLastUpdateTime();
+        if (lastUpdate > 0) {
+          Serial.printf("Last Update: %lu ms ago\n", millis() - lastUpdate);
+        } else {
+          Serial.println("Last Update: Never");
+        }
+        
+        // Show channel values
+        uint8_t channels[5];
+        DMXReceiver::getChannelCache(channels);
+        char buffer[128];
+        DMXReceiver::getFormattedChannelValues(buffer, sizeof(buffer));
+        Serial.println(buffer);
+        
+        // Show packet stats
+        uint32_t total, errors;
+        DMXReceiver::getPacketStats(total, errors);
+        Serial.printf("Packets: %lu total, %lu errors\n", total, errors);
+        
+        // Interpret channel values
+        Serial.println("\nChannel Interpretation:");
+        Serial.printf("  Position: %d (MSB) + %d (LSB)\n", channels[0], channels[1]);
+        Serial.printf("  Acceleration: %d (%.1f%% of max)\n", channels[2], (channels[2] / 255.0) * 100);
+        Serial.printf("  Speed: %d (%.1f%% of max)\n", channels[3], (channels[3] / 255.0) * 100);
+        Serial.printf("  Mode: %d (", channels[4]);
+        if (channels[4] <= 84) Serial.print("STOP");
+        else if (channels[4] <= 170) Serial.print("DMX CONTROL");
+        else Serial.print("FORCE HOME");
+        Serial.println(")");
+        
+        Serial.println("================\n");
+        return true;
+      }
+      else if (params == "TEST") {
+        // Raw UART test to see if we're getting any data
+        Serial.println("\n=== DMX UART Test ===");
+        Serial.println("Testing raw UART2 reception on GPIO 4...");
+        Serial.println("Press any key to exit\n");
+        
+        // Direct UART test
+        HardwareSerial dmxSerial(2);
+        dmxSerial.begin(250000, SERIAL_8N2, DMX_RO_PIN, -1);
+        
+        uint32_t lastPrint = millis();
+        uint32_t byteCount = 0;
+        
+        while (!Serial.available()) {
+          if (dmxSerial.available()) {
+            uint8_t b = dmxSerial.read();
+            byteCount++;
+            Serial.printf("0x%02X ", b);
+            if (byteCount % 16 == 0) Serial.println();
+          }
+          
+          if (millis() - lastPrint > 1000) {
+            lastPrint = millis();
+            Serial.printf("\n[Bytes received: %lu]\n", byteCount);
+          }
+        }
+        
+        dmxSerial.end();
+        while (Serial.available()) Serial.read();
+        Serial.println("\n\nUART test ended\n");
+        return true;
+      }
+      else if (params == "MONITOR") {
+        Serial.println("\nDMX Monitor Mode - Press any key to exit");
+        Serial.println("Base Channel: " + String(DMXReceiver::getBaseChannel()));
+        Serial.println("Watching for DMX data...");
+        Serial.println("\nChannel Layout:");
+        Serial.println("  Ch+0: Position MSB (coarse 8-bit)");
+        Serial.println("  Ch+1: Position LSB (fine 16-bit)");
+        Serial.println("  Ch+2: Acceleration (0-255 = 0-100%)");
+        Serial.println("  Ch+3: Speed (0-255 = 0-100%)");
+        Serial.println("  Ch+4: Mode (0-84=STOP, 85-170=CONTROL, 171-255=HOME)\n");
+        
+        // Enter monitoring loop
+        uint32_t lastPrint = 0;
+        uint8_t lastChannels[5] = {0};
+        bool firstPrint = true;
+        
+        while (!Serial.available()) {
+          if (millis() - lastPrint > 100) {  // Update 10 times per second for better response
+            lastPrint = millis();
+            
+            if (DMXReceiver::isSignalPresent()) {
+              uint8_t channels[5];
+              DMXReceiver::getChannelCache(channels);
+              
+              // Check if any channel changed
+              bool changed = false;
+              for (int i = 0; i < 5; i++) {
+                if (channels[i] != lastChannels[i] || firstPrint) {
+                  changed = true;
+                  lastChannels[i] = channels[i];
+                }
+              }
+              
+              if (changed || firstPrint) {
+                firstPrint = false;
+                
+                // Clear line and print channel values
+                Serial.print("\r");
+                Serial.printf("Ch%d-Ch%d: [", 
+                  DMXReceiver::getBaseChannel(), 
+                  DMXReceiver::getBaseChannel() + 4);
+                
+                // Print each channel with color coding for changes
+                for (int i = 0; i < 5; i++) {
+                  if (i > 0) Serial.print(",");
+                  Serial.printf("%3d", channels[i]);
+                }
+                Serial.print("] ");
+                
+                // Add interpretations
+                Serial.print("Pos:");
+                if (channels[1] == 0) {
+                  // 8-bit mode
+                  Serial.printf("%3d%% ", (channels[0] * 100) / 255);
+                } else {
+                  // 16-bit mode
+                  uint16_t pos16 = (channels[0] << 8) | channels[1];
+                  Serial.printf("%3d%% ", (pos16 * 100) / 65535);
+                }
+                
+                Serial.printf("Acc:%3d%% Spd:%3d%% Mode:", 
+                  (channels[2] * 100) / 255,
+                  (channels[3] * 100) / 255);
+                
+                if (channels[4] <= 84) Serial.print("STOP    ");
+                else if (channels[4] <= 170) Serial.print("CONTROL ");
+                else Serial.print("HOME    ");
+                
+                // Add raw values in hex for debugging
+                Serial.print(" [HEX:");
+                for (int i = 0; i < 5; i++) {
+                  Serial.printf(" %02X", channels[i]);
+                }
+                Serial.print("]");
+              }
+            } else {
+              Serial.print("\rNo DMX signal...                                                              ");
+              firstPrint = true;
+            }
+          }
+        }
+        
+        // Clear any pending serial input
+        while (Serial.available()) Serial.read();
+        Serial.println("\n\nMonitor mode exited\n");
+        return true;
+      }
+      else if (params == "DEBUG") {
+        // Debug mode to test individual channel reading
+        Serial.println("\n=== DMX Debug Mode ===");
+        Serial.println("Testing individual channel reading...");
+        Serial.printf("Base channel: %d\n", DMXReceiver::getBaseChannel());
+        Serial.println("Press any key to exit\n");
+        
+        uint32_t lastPrint = 0;
+        
+        while (!Serial.available()) {
+          if (millis() - lastPrint > 500) {  // Update every 500ms
+            lastPrint = millis();
+            
+            Serial.println("\n--- Direct Channel Read Test ---");
+            
+            // Test reading individual channels
+            for (int ch = DMXReceiver::getBaseChannel(); ch < DMXReceiver::getBaseChannel() + 5; ch++) {
+              uint16_t value = DMXReceiver::getChannelValue(ch);
+              Serial.printf("Channel %3d: %3d (0x%02X)\n", ch, value, value);
+            }
+            
+            // Also show the cached values
+            Serial.println("\n--- Cached Values ---");
+            uint8_t cached[5];
+            DMXReceiver::getChannelCache(cached);
+            for (int i = 0; i < 5; i++) {
+              Serial.printf("Cache[%d]: %3d (0x%02X)\n", i, cached[i], cached[i]);
+            }
+            
+            // Show DMX library status
+            Serial.println("\n--- DMX Library Status ---");
+            Serial.printf("Connected: %s\n", DMXReceiver::isSignalPresent() ? "YES" : "NO");
+            uint32_t total, errors;
+            DMXReceiver::getPacketStats(total, errors);
+            Serial.printf("Packets: %lu, Errors: %lu\n", total, errors);
+          }
+        }
+        
+        while (Serial.available()) Serial.read();
+        Serial.println("\n\nDebug mode exited\n");
+        return true;
+      }
+      else if (params == "SCAN") {
+        // Scan all DMX channels to find active ones
+        Serial.println("\n=== DMX Channel Scanner ===");
+        Serial.println("Scanning all 512 DMX channels for activity...");
+        Serial.println("Move your sliders to see which channels are active");
+        Serial.println("Press any key to exit\n");
+        
+        uint8_t lastValues[512];
+        memset(lastValues, 0, sizeof(lastValues));
+        bool firstScan = true;
+        
+        while (!Serial.available()) {
+          // Read all channels
+          for (int ch = 1; ch <= 512; ch++) {
+            uint8_t value = DMXReceiver::getChannelValue(ch);
+            
+            // Check if value changed from last scan
+            if (value != lastValues[ch-1] && value != 0) {
+              if (!firstScan) {
+                Serial.printf("Channel %3d: %3d (0x%02X) ***ACTIVE***\n", ch, value, value);
+              }
+              lastValues[ch-1] = value;
+            }
+          }
+          firstScan = false;
+          delay(100);  // Scan every 100ms
+        }
+        
+        // Show summary of all non-zero channels
+        Serial.println("\n--- Summary of Non-Zero Channels ---");
+        int activeCount = 0;
+        for (int ch = 1; ch <= 512; ch++) {
+          uint8_t value = DMXReceiver::getChannelValue(ch);
+          if (value != 0) {
+            Serial.printf("Channel %3d: %3d (0x%02X)\n", ch, value, value);
+            activeCount++;
+          }
+        }
+        Serial.printf("\nTotal active channels: %d\n", activeCount);
+        
+        while (Serial.available()) Serial.read();
+        Serial.println("\nScan complete\n");
+        return true;
+      }
+      else if (params.startsWith("CHANNEL ")) {
+        // Set base channel
+        String channelStr = params.substring(8);
+        int channel = channelStr.toInt();
+        if (channel >= 1 && channel <= 508) {
+          if (DMXReceiver::setBaseChannel(channel)) {
+            Serial.printf("DMX base channel set to %d\n", channel);
+            Serial.printf("Now monitoring channels %d-%d\n", channel, channel + 4);
+            sendOK();
+          } else {
+            sendError("Failed to set base channel");
+          }
+        } else {
+          sendError("Channel must be 1-508 (to allow for 5 channels)");
+        }
+        return true;
+      }
+      else {
+        sendError("DMX commands: STATUS, MONITOR, TEST, DEBUG, SCAN, CHANNEL <n>");
+        return false;
+      }
     }
     else if (mainCmd == "TEST2" || mainCmd == "RANDOMTEST") {
       // Check if system has been homed

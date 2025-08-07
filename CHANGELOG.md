@@ -5,6 +5,24 @@ All notable changes to the SkullStepperV4 project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.3] - 2025-02-02
+
+### Fixed
+- DMX speed and acceleration channels now properly control motion parameters
+- StepperController applies speed/acceleration from motion commands instead of ignoring them
+- Motion commands from DMX now use dynamic speed/acceleration values from channels 2 and 3
+
+## [4.1.2] - 2025-02-02
+
+### Added
+- DMX Phase 1 implementation: Core infrastructure with ESP32S3DMX library
+- 5-channel DMX operation with configurable base offset
+- DMX signal monitoring and timeout detection
+- Real-time DMX processing on Core 0
+
+### Changed
+- Improved DMX channel layout: Position LSB moved to channel 1
+
 ## [4.1.1] - 2025-02-02
 
 ### Added

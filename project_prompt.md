@@ -1,6 +1,6 @@
 # SkullStepperV4 Project Prompt
 ## Complete Project Context for AI Assistants
-### Version 4.1.1 - Production Ready
+### Version 4.1.2 - Production Ready with DMX Development
 ### Last Updated: 2025-02-02
 
 ## Project Overview
@@ -9,14 +9,14 @@ You are working on SkullStepperV4, a production-ready ESP32-S3 based stepper mot
 
 ## Current Project Status
 
-**PRODUCTION READY** - All core features implemented and tested:
+**PRODUCTION READY** with DMX development in progress:
 - ✅ Automatic homing with range detection
 - ✅ Position limit enforcement (hardware and software)
 - ✅ Configurable motion profiles with jerk limitation
 - ✅ Persistent configuration in flash memory
 - ✅ Serial command interface (USB and UART)
 - ✅ Web interface with real-time updates
-- ✅ DMX512 control integration
+- 🚧 DMX512 control integration (Phase 1 of 8 complete)
 - ✅ Comprehensive safety monitoring
 - ✅ Configurable home position (percentage-based)
 - ✅ Stress testing capabilities
@@ -24,19 +24,48 @@ You are working on SkullStepperV4, a production-ready ESP32-S3 based stepper mot
 - ✅ Home on boot option
 - ✅ Home on E-stop option
 
+## DMX Implementation Status (Phase 6)
+
+### Completed (Phases 1-4 COMPLETE)
+- ✅ **Phase 1**: Core DMX Infrastructure
+  - ESP32S3DMX library integration on UART2/GPIO4
+  - Core 0 real-time task for DMX processing (10ms cycle)
+  - 5-channel cache system with improved layout
+  - Signal loss detection with configurable timeout
+  - Base channel configuration (1-508)
+- ✅ **Phase 2**: Channel Processing
+  - Position mapping (8-bit and 16-bit modes)
+  - Speed/acceleration scaling (0-100% of max)
+  - Mode detection with hysteresis (Stop/Control/Home)
+- ✅ **Phase 3**: System Integration
+  - Full StepperController integration
+  - Dynamic parameter updates
+  - Thread-safe command queuing
+- ✅ **Phase 4**: Motion Integration  
+  - DMX controls position, speed, and acceleration
+  - Smooth mode transitions
+  - Signal loss position hold
+
+### Remaining DMX Phases
+- Phase 5: Web Interface Updates (DMX display/config)
+- Phase 6: Serial Interface Updates (DMX commands)
+- Phase 7: 16-bit Position Implementation UI
+- Phase 8: Testing & Validation
+
 ## Architecture Overview
 
 ### Hardware
 - **MCU**: ESP32-S3-WROOM-1 (Dual-core, 240MHz)
-- **Motion**: TMC2209 stepper driver with UART control
+- **Motion**: CL57Y closed-loop stepper driver
+- **DMX**: ESP32S3DMX library on UART2 (GPIO 4)
 - **Feedback**: Optical limit switches (active LOW)
 - **Interface**: USB-C, WiFi AP, DMX512
 - **Power**: 24V for motor, 3.3V logic
 
 ### Software Architecture
 - **Dual-Core Design**:
-  - Core 0: Real-time motion control, safety monitoring
-  - Core 1: User interfaces, configuration, DMX
+  - Core 0: Real-time motion control, safety monitoring, DMX reception
+  - Core 1: User interfaces, configuration
 - **Thread-Safe**: Mutexes protect shared data
 - **Modular**: 7 independent modules with clean interfaces
 - **Event-Driven**: Queue-based inter-module communication
@@ -44,7 +73,7 @@ You are working on SkullStepperV4, a production-ready ESP32-S3 based stepper mot
 ## Key Implementation Details
 
 ### Motion Control (StepperController)
-- Uses FastAccelStepper library for smooth motion
+- Uses ODStepper/FastAccelStepper library for smooth motion
 - Automatic homing sequence:
   1. Find left limit (set as 0)
   2. Find right limit
@@ -52,6 +81,16 @@ You are working on SkullStepperV4, a production-ready ESP32-S3 based stepper mot
   4. Move to configured home position (percentage)
 - Position limits enforced in software
 - Motion profiles with speed/acceleration/jerk control
+
+### DMX Control (DMXReceiver) - IN DEVELOPMENT
+- ESP32S3DMX library for reliable DMX512 reception
+- 5-channel operation with base offset:
+  - Position control (8-bit or 16-bit precision)
+  - Dynamic speed/acceleration limiting
+  - Mode control (Stop/DMX/Home)
+- Real-time processing on Core 0
+- Signal timeout with position hold
+- Configurable base channel (1-508)
 
 ### Safety System
 - Hardware limit switches monitored continuously
@@ -87,22 +126,23 @@ You are working on SkullStepperV4, a production-ready ESP32-S3 based stepper mot
 - "Move to Home" button
 - Stress testing tools
 
-#### DMX Interface
-- 512 channel support
-- Position control via DMX value
-- Configurable scaling and offset
-- Signal timeout detection
+#### DMX Interface (In Development)
+- 5-channel control scheme
+- Position control with 8/16-bit modes
+- Dynamic parameter adjustment
+- Mode switching capability
+- Signal monitoring
 
 ## Recent Changes (2025-02-02)
 
-1. **Fixed Web Stress Test**: Now runs continuously like serial version
-2. **Enhanced Limits Tab**: Shows detected range, validates inputs
-3. **Configurable Home Position**: Percentage-based (0-100%) instead of fixed
-4. **Move to Home Button**: One-click return to configured position
-5. **Improved UI/UX**: Better feedback and disabled states
-6. **Home on Boot**: Checkbox option to automatically home the system on startup
-7. **Home on E-Stop**: Checkbox option to automatically home after emergency stop
-8. **Fixed Auto-Home on E-Stop**: Corrected implementation - now properly triggers from COMPLETE state and clears limit fault
+1. **DMX Phase 1 Complete**: Core infrastructure with ESP32S3DMX
+2. **Improved DMX Channel Layout**: Position LSB moved to channel 1
+3. **Fixed Web Stress Test**: Now runs continuously like serial version
+4. **Enhanced Limits Tab**: Shows detected range, validates inputs
+5. **Configurable Home Position**: Percentage-based (0-100%) instead of fixed
+6. **Move to Home Button**: One-click return to configured position
+7. **Home on Boot/E-Stop**: Automatic homing options
+8. **Fixed Auto-Home on E-Stop**: Corrected implementation
 
 ## Code Organization
 
@@ -117,7 +157,8 @@ SkullStepperV4/
 ├── SystemConfig.cpp/h       # Configuration management (Core 1)
 ├── SerialInterface.cpp/h    # Serial commands (Core 1)
 ├── WebInterface.cpp/h       # Web server (Core 1)
-├── DMXReceiver.cpp/h        # DMX control (Core 1)
+├── DMXReceiver.cpp/h        # DMX control (Core 0) - ACTIVE DEVELOPMENT
+├── DMX_Implementation_Plan.md # DMX development roadmap
 └── README.md               # Comprehensive documentation
 ```
 
@@ -136,12 +177,20 @@ SkullStepperV4/
 - Queue commands between cores
 - Keep critical sections short
 
+### DMX Development Guidelines
+- Follow the DMX_Implementation_Plan.md phases
+- Maintain Core 0 real-time constraints
+- Use existing thread-safe infrastructure
+- Test with various DMX sources
+- Document channel assignments clearly
+
 ### Testing Requirements
 - Test normal operation
 - Test error conditions
 - Verify limit switch behavior
 - Check configuration persistence
 - Validate web interface updates
+- Test DMX signal reception (when complete)
 
 ## Common Tasks
 
@@ -159,27 +208,36 @@ SkullStepperV4/
 4. Update web interface
 5. Add serial CONFIG SET/RESET handlers
 
+### Working with DMX
+1. Check DMX_Implementation_Plan.md for design
+2. Use DMXReceiver namespace functions
+3. Access channel cache for processed values
+4. Monitor signal state before using data
+5. Test with DMX console
+
 ### Debugging
 - Serial output at 115200 baud
 - Web interface shows real-time status
 - CONFIG SHOW displays all parameters
 - STATUS shows current state
 - Test commands help isolate issues
+- DMX monitoring (coming in Phase 6)
 
 ## Current Focus Areas
 
-The system is production-ready. Recent bug fixes:
-- Fixed auto-home on E-stop to properly initiate homing sequence
-- Auto-home now correctly uses processMotionCommand() instead of direct function calls
-- Auto-home triggers correctly from both IDLE and COMPLETE homing states
-- Limit fault is automatically cleared to allow auto-home to proceed
+The system is production-ready with DMX development in progress:
+- DMX Phase 1 (Core Infrastructure) ✅ COMPLETE
+- DMX Phase 2 (Channel Processing) - Next priority
+- Integration with existing motion control
+- Web interface DMX status display
+- Serial commands for DMX configuration
 
-Future enhancements could include:
+Future enhancements:
+- Complete DMX implementation (Phases 2-8)
 - Multiple motion profiles
 - Position presets
 - Sequence programming
 - Data logging
-- Encoder feedback
 
 ## Important Notes
 
@@ -189,6 +247,7 @@ Future enhancements could include:
 4. **Configuration**: Saved to flash automatically
 5. **Web Interface**: Available at 192.168.4.1 in AP mode
 6. **Auto-Homing**: Can be configured for boot and E-stop recovery
+7. **DMX Development**: Following structured 8-phase plan
 
 ## Getting Help
 
@@ -197,5 +256,6 @@ Future enhancements could include:
 - Web interface has built-in parameter descriptions
 - Code comments explain implementation details
 - Design docs provide architecture overview
+- DMX_Implementation_Plan.md for DMX development
 
-This system is ready for production deployment in professional installations requiring reliable, safe stepper motor control with multiple interface options.
+This system is ready for production deployment in professional installations requiring reliable, safe stepper motor control with multiple interface options. DMX control is actively being developed to add professional lighting console integration.

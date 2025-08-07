@@ -1,11 +1,11 @@
 // ============================================================================
 // File: StepperController.cpp
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
-// Version: 4.1.1
+// Version: 4.1.3
 // Date: 2025-02-02
 // Author: Tim Rosener
 // Description: Thread-safe stepper motor control implementation with ODStepper
-//              Fixed auto-home on E-stop to properly use processMotionCommand()
+//              Fixed: Now applies speed/acceleration from DMX motion commands
 // License: MIT
 //
 // CRITICAL: This module runs on Core 0 for real-time performance
@@ -824,6 +824,19 @@ bool processMotionCommand(const MotionCommand& cmd) {
     
     switch (cmd.type) {
         case CommandType::MOVE_ABSOLUTE:
+            // Apply speed and acceleration from the command profile if they are different
+            if (cmd.profile.maxSpeed > 0 && cmd.profile.maxSpeed != g_currentProfile.maxSpeed) {
+                g_stepper->setSpeedInHz(cmd.profile.maxSpeed);
+                g_currentProfile.maxSpeed = cmd.profile.maxSpeed;
+                Serial.printf("StepperController: Setting speed to %.1f for this move\n", cmd.profile.maxSpeed);
+            }
+            if (cmd.profile.acceleration > 0 && cmd.profile.acceleration != g_currentProfile.acceleration) {
+                g_stepper->setAcceleration(cmd.profile.acceleration);
+                g_currentProfile.acceleration = cmd.profile.acceleration;
+                g_currentProfile.deceleration = cmd.profile.acceleration;
+                Serial.printf("StepperController: Setting acceleration to %.1f for this move\n", cmd.profile.acceleration);
+            }
+            
             if (g_positionLimitsValid && cmd.profile.enableLimits) {
                 // Get user-configured limits from SystemConfig
                 SystemConfig* config = SystemConfigMgr::getConfig();
@@ -861,6 +874,19 @@ bool processMotionCommand(const MotionCommand& cmd) {
             
         case CommandType::MOVE_RELATIVE:
             {
+                // Apply speed and acceleration from the command profile if they are different
+                if (cmd.profile.maxSpeed > 0 && cmd.profile.maxSpeed != g_currentProfile.maxSpeed) {
+                    g_stepper->setSpeedInHz(cmd.profile.maxSpeed);
+                    g_currentProfile.maxSpeed = cmd.profile.maxSpeed;
+                    Serial.printf("StepperController: Setting speed to %.1f for this move\n", cmd.profile.maxSpeed);
+                }
+                if (cmd.profile.acceleration > 0 && cmd.profile.acceleration != g_currentProfile.acceleration) {
+                    g_stepper->setAcceleration(cmd.profile.acceleration);
+                    g_currentProfile.acceleration = cmd.profile.acceleration;
+                    g_currentProfile.deceleration = cmd.profile.acceleration;
+                    Serial.printf("StepperController: Setting acceleration to %.1f for this move\n", cmd.profile.acceleration);
+                }
+                
                 int32_t targetPos = g_currentPosition + cmd.profile.targetPosition;
                 if (g_positionLimitsValid && cmd.profile.enableLimits) {
                     // Get user-configured limits from SystemConfig

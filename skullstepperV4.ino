@@ -1,7 +1,7 @@
 // ============================================================================
 // File: skullstepperV4.ino - Thread-Safe Main Sketch with StepperController
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
-// Version: 4.1.1
+// Version: 4.1.3
 // Date: 2025-02-02
 // Author: Tim Rosener
 // Description: Main Arduino sketch with complete system integration
@@ -23,6 +23,8 @@
 #include "WebInterface.h"
 #endif
 
+#include "DMXReceiver.h"  // DMX512 input module
+
 // Forward declaration of global infrastructure function
 bool initializeGlobalInfrastructure();
 void printInfrastructureStatus();
@@ -43,7 +45,7 @@ void setup() {
   Serial.println();
   Serial.println("============================================================================");
   Serial.println("SkullStepperV4 - ESP32-S3 Thread-Safe Stepper Control");
-  Serial.println("Version: 4.1.1 - Production Ready with Web Interface");
+  Serial.println("Version: 4.1.3 - Production Ready with DMX Development");
   Serial.println("Memory-Safe, Thread-Safe Architecture");
   Serial.println("============================================================================");
   
@@ -119,7 +121,21 @@ void setup() {
   Serial.println("✓ Thread-safe motion command queue ready");
   
   // ========================================================================
-  // STEP 5: Initialize WebInterface (Optional)
+  // STEP 5: Initialize DMXReceiver (Phase 6 Development)
+  // ========================================================================
+  Serial.println("\nSTEP 5: Initializing DMX receiver...");
+  if (!DMXReceiver::initialize()) {
+    Serial.println("WARNING: DMX receiver initialization failed");
+    Serial.println("DMX control will not be available");
+  } else {
+    Serial.println("✓ ESP32S3DMX library initialized");
+    Serial.println("✓ Core 0 DMX task running");
+    Serial.println("✓ DMX signal monitoring active");
+    Serial.println("✓ 5-channel configuration ready");
+  }
+  
+  // ========================================================================
+  // STEP 6: Initialize WebInterface (Optional)
   // ========================================================================
   #ifdef ENABLE_WEB_INTERFACE
   Serial.println("\nSTEP 5: Initializing web interface...");
@@ -131,7 +147,7 @@ void setup() {
   #endif
   
   // ========================================================================
-  // STEP 6: Validate System Integrity
+  // STEP 7: Validate System Integrity
   // ========================================================================
   Serial.println("\nSTEP 6: Validating system integrity...");
   if (!validateSystemIntegrity()) {
@@ -148,6 +164,7 @@ void setup() {
   
   Serial.println("============================================================================");
   Serial.println("COMPLETE THREAD-SAFE MOTION CONTROL SYSTEM READY");
+  Serial.println("DMX RECEIVER MODULE ACTIVE (Phase 1 Complete)");
   Serial.println("============================================================================");
   Serial.println("Features enabled:");
   Serial.println("  ✓ Thread-safe operation (FreeRTOS mutexes & queues)");
@@ -170,6 +187,7 @@ void setup() {
   Serial.println("Info: STATUS, PARAMS, HELP");
   Serial.println("Interface: ECHO ON/OFF, VERBOSE 0-3, JSON ON/OFF, STREAM ON/OFF");
   Serial.println("Testing: TEST (stress test), TEST2/RANDOMTEST (random positions)");
+  Serial.println("DMX: DMX STATUS, DMX MONITOR (for testing)");
   Serial.println("System: Infrastructure test commands available");
   Serial.println("============================================================================");
   Serial.println("Type 'HELP' for complete command reference");

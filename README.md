@@ -1,8 +1,8 @@
 # SkullStepperV4 - ESP32-S3 Closed-Loop Stepper Control System
 
-**Version**: 4.1.1  
+**Version**: 4.1.3  
 **Date**: 2025-02-02  
-**Status**: Production-Ready with Web Interface
+**Status**: Production-Ready with DMX Development in Progress
 
 ## System Architecture Overview
 
@@ -325,8 +325,31 @@ The system is now **production-ready** with a complete web-based control interfa
 - [x] **Thread-Safe Design** - Proper integration with existing architecture
 - [x] **Zero External Dependencies** - All HTML/CSS/JS embedded in firmware
 
+### 🚧 Phase 6: DMXReceiver Module (IN PROGRESS - 2025-02-02)
+- [x] **Phase 1 Complete**: Core DMX Infrastructure with ESP32S3DMX
+  - ESP32S3DMX library integration on UART2/GPIO4
+  - Core 0 real-time task for DMX processing
+  - 5-channel cache system with improved layout
+  - Signal loss detection and timeout handling
+  - Thread-safe status updates
+- [x] **Phase 2 Complete**: Channel Processing
+  - Position mapping (8-bit and 16-bit modes)
+  - Speed/acceleration scaling from DMX values  
+  - Mode detection with hysteresis
+- [x] **Phase 3 Complete**: System Integration
+  - Full StepperController integration
+  - Dynamic parameter application
+  - Safety checks and mode transitions
+- [x] **Phase 4 Complete**: Motion Integration
+  - DMX controls position, speed, and acceleration
+  - Smooth mode transitions (Stop/Control/Home)
+  - Signal loss position hold
+- [ ] **Phase 5**: Web Interface Updates (DMX status display, configuration)
+- [ ] **Phase 6**: Serial Interface Updates (DMX commands and monitoring)
+- [ ] **Phase 7**: 16-bit Position Implementation UI
+- [ ] **Phase 8**: Testing & Validation
+
 ### 🔄 Future Enhancement Phases
-- [ ] **Phase 6:** DMXReceiver Module (DMX512 packet reception)
 - [ ] **Phase 7:** SafetyMonitor Module (Centralized safety monitoring)
 - [ ] **Phase 8:** Advanced Features (Position persistence, data logging, etc.)
 
@@ -533,11 +556,22 @@ Position Tracking          ALARM Signal
 - **Configuration Persistence**: All motion parameters load from flash on boot
 - **User-Configurable Homing Speed**: Adjustable via CONFIG command or web interface
 
-### DMXReceiver (Core 0 - Real-Time) - PLANNED
-- Receive DMX512 packets via MAX485 interface
-- Validate packet timing and data integrity
-- Scale DMX values to system units
-- Monitor signal presence and timeout conditions
+### 🚧 DMXReceiver (Core 0 - Real-Time) - PHASE 6 IN PROGRESS
+**Phase 1 Implemented (2025-02-02):**
+- ESP32S3DMX library integration for DMX512 reception on UART2
+- Core 0 real-time task with 10ms update cycle
+- 5-channel operation with configurable base offset (1-508)
+- Channel layout: Position MSB, Position LSB, Acceleration, Speed, Mode
+- Signal presence detection and timeout handling (configurable 100-60000ms)
+- Thread-safe communication with system status updates
+- Packet statistics tracking (total/error counts)
+
+**Remaining Implementation:**
+- Channel value processing and mode detection
+- Position mapping (8-bit and 16-bit modes)
+- Dynamic speed/acceleration scaling
+- Integration with StepperController for motion commands
+- Web and serial interface integration
 
 ### SafetyMonitor (Core 0 - Real-Time) - PLANNED
 - Monitor limit switch states with debouncing
@@ -655,13 +689,23 @@ Position Tracking          ALARM Signal
    - Tune speed/acceleration for your mechanics
    - Test web interface on various devices
 
-### Phase 6 - DMXReceiver Module (Next Priority):
-- Implement DMX512 packet reception on UART2
-- Add packet validation and timing checks
-- Scale DMX values (0-255) to position using dmxScale and dmxOffset
+### Phase 6 - DMXReceiver Module (IN PROGRESS):
+**Completed (Phase 1 - 2025-02-02):**
+- ✅ ESP32S3DMX library integration on UART2/GPIO4
+- ✅ Core 0 real-time task for DMX processing
+- ✅ 5-channel cache with improved layout (Position MSB/LSB adjacent)
+- ✅ Signal detection and timeout handling
+- ✅ Base channel configuration (1-508)
+- ✅ Thread-safe status updates
+
+**Remaining (Phases 2-8):**
+- Implement channel value processing and mode detection
+- Add position mapping (8-bit and 16-bit modes)
+- Scale DMX values to position/speed/acceleration
 - Queue position updates to StepperController
-- Handle DMX timeout conditions
-- Web interface for DMX monitoring
+- Web interface DMX status display and configuration
+- Serial commands for DMX monitoring and control
+- Complete testing with DMX consoles
 
 ### Phase 7 - SafetyMonitor Module (Optional Refactor):
 - Most safety features already implemented in StepperController
@@ -700,7 +744,7 @@ Position Tracking          ALARM Signal
 ✅ **Phase 3**: Interactive command interface (human & JSON) - COMPLETE  
 ✅ **Phase 4**: Motion control with ODStepper integration - COMPLETE  
 ✅ **Phase 5**: WebInterface module - COMPLETE (WiFi control interface)
-📝 **Phase 6**: DMXReceiver module - NEXT PRIORITY
+🚧 **Phase 6**: DMXReceiver module - IN PROGRESS (Phase 1 of 8 complete)
 🔄 **Phase 7**: SafetyMonitor module - OPTIONAL (safety already integrated)
 🔄 **Phase 8**: Advanced features - FUTURE
 
@@ -714,6 +758,7 @@ Position Tracking          ALARM Signal
 - All motion parameters user-configurable via serial or web
 - **Fixed**: Web interface stress test now runs continuously (matches serial interface)
 - **New**: Configurable home position as percentage of range (survives reboot)
+- **DMX Progress**: Core infrastructure implemented with ESP32S3DMX library
 - Ready for production deployment!
 
 **Recent Development (2025-01-31):**
@@ -1021,7 +1066,7 @@ attachInterrupt(digitalPinToInterrupt(RIGHT_LIMIT_PIN), rightLimitISR, FALLING);
 
 Use `PARAMS` command for full parameter details with ranges and defaults.
 
-## Current Status Summary (v4.1.1 - 2025-02-02)
+## Current Status Summary (v4.1.3 - 2025-02-02)
 
 ### 🏆 Production-Ready System
 
@@ -1032,8 +1077,10 @@ Use `PARAMS` command for full parameter details with ranges and defaults.
 ✅ **Phase 4**: Motion control with ODStepper integration - COMPLETE  
 ✅ **Phase 5**: WebInterface module - COMPLETE (Core system component)
 
+**Active Development:**
+🚧 **Phase 6**: DMXReceiver module - IN PROGRESS (Phase 1 of 8 complete)
+
 **Future Enhancements:**
-🔄 **Phase 6**: DMXReceiver module - NEXT PRIORITY
 🔄 **Phase 7**: SafetyMonitor module - OPTIONAL (safety already integrated)
 🔄 **Phase 8**: Advanced features - Data logging, OTA updates, etc.
 
@@ -1063,6 +1110,11 @@ Use `PARAMS` command for full parameter details with ranges and defaults.
    - Homing required before movement
 
 ### 🚀 Latest Enhancements (2025-02-02)
+
+- **DMX Development Started**: Phase 1 complete with ESP32S3DMX integration
+- **Improved DMX Channel Layout**: Position MSB/LSB now adjacent (channels 0-1)
+- **Core 0 DMX Task**: Real-time processing without affecting motion control
+- **Fixed DMX Speed/Acceleration Control**: StepperController now properly applies speed and acceleration values from DMX channels when executing motion commands (v4.1.3)
 
 - **WebInterface as Core Component**: Full web control with real-time updates
 - **Test Functions in Web UI**: TEST and TEST2 buttons for validation
