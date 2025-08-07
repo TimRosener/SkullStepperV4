@@ -2213,7 +2213,7 @@ void WebInterface::getSystemStatus(JsonDocument& doc) {
     doc["config"]["autoHomeOnEstop"] = config->autoHomeOnEstop;
     
     // Add system information
-    doc["systemInfo"]["version"] = "4.1.5";
+    doc["systemInfo"]["version"] = "4.1.6";
     doc["systemInfo"]["hardware"] = "ESP32-S3-WROOM-1";
     doc["systemInfo"]["uptime"] = millis();
     doc["systemInfo"]["freeHeap"] = ESP.getFreeHeap();
@@ -2251,7 +2251,7 @@ void WebInterface::getSystemConfig(JsonDocument& doc) {
 }
 
 void WebInterface::getSystemInfo(JsonDocument& doc) {
-    doc["version"] = "4.1.5";
+    doc["version"] = "4.1.6";
     doc["hardware"] = "ESP32-S3-WROOM-1";
     doc["uptime"] = millis();
     doc["freeHeap"] = ESP.getFreeHeap();

@@ -1,6 +1,6 @@
 # SkullStepperV4 Project Prompt
 ## Complete Project Context for AI Assistants
-### Version 4.1.5 - Production Ready with DMX Development
+### Version 4.1.6 - Production Ready with DMX Development
 ### Last Updated: 2025-02-02
 
 ## Project Overview
@@ -153,6 +153,13 @@ You are working on SkullStepperV4, a production-ready ESP32-S3 based stepper mot
    - Auto-Home on Boot and Auto-Home on E-Stop now always visible
    - Created dedicated "Homing Options" section in Motion & Limits tab
    - Checkboxes no longer hidden when system is not homed
+11. **DMX Safety Enhancement (v4.1.6)**:
+   - DMX position control now blocked when homing is required
+   - DMX HOME command (channel 5 = 171-255) still works when homing needed
+   - **DMX input completely ignored during homing sequence**
+   - **Homing only needs momentary DMX trigger (prevents loops)**
+   - Allows DMX to initiate homing even after E-STOP or on boot
+   - Clear console messages indicate when DMX control is blocked
 
 ## Code Organization
 

@@ -1,7 +1,7 @@
 // ============================================================================
 // File: DMXReceiver.cpp
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
-// Version: 4.1.2
+// Version: 4.1.6
 // Date: 2025-02-02
 // Author: Tim Rosener
 // Description: DMXReceiver module implementation - DMX512 signal reception
@@ -54,12 +54,16 @@ namespace DMXReceiver {
   static DMXMode currentMode = DMXMode::STOP;
   static DMXMode lastMode = DMXMode::STOP;
   static const uint8_t MODE_HYSTERESIS = 5;  // Prevent mode flickering
+  static bool homingInProgress = false;  // Track if homing is active
+  static bool homingTriggeredByDMX = false;  // Track if DMX initiated the homing
   
   // DMX configuration
   static bool dmxEnabled = true;  // DMX control enabled by default
   static bool use16BitPosition = false;  // Default to 8-bit mode
   static uint32_t lastMotionCommandTime = 0;
   static int32_t lastTargetPosition = -1;  // Track last commanded position
+  static uint8_t lastSpeedValue = 0;  // Track last speed DMX value
+  static uint8_t lastAccelValue = 0;  // Track last acceleration DMX value
   
   // ----------------------------------------------------------------------------
   // DMX Mode Detection with Hysteresis
@@ -116,14 +120,27 @@ namespace DMXReceiver {
       return;
     }
     
-    // Check if system is homed (required for DMX control)
-    if (!StepperController::isHomed()) {
-      static uint32_t lastHomingWarning = 0;
-      if (millis() - lastHomingWarning > 5000) {
-        lastHomingWarning = millis();
-        Serial.println("[DMX] System not homed - DMX control disabled");
-      }
-      return;
+    // Check if homing is in progress
+    bool currentlyHoming = StepperController::isHoming();
+    
+    // If homing just started, set our flag
+    if (currentlyHoming && !homingInProgress) {
+      homingInProgress = true;
+      Serial.println("[DMX] Homing in progress - ignoring all DMX input");
+    }
+    
+    // If homing just completed, clear our flag and resume DMX processing
+    if (!currentlyHoming && homingInProgress) {
+      homingInProgress = false;
+      homingTriggeredByDMX = false;
+      Serial.println("[DMX] Homing complete - resuming DMX processing");
+      // Reset mode to STOP to prevent immediate re-triggering
+      currentMode = DMXMode::STOP;
+    }
+    
+    // IGNORE ALL DMX INPUT WHILE HOMING
+    if (homingInProgress) {
+      return;  // Don't process any DMX channels during homing
     }
     
     // Get current channel values (already cached by updateChannelCache)
@@ -132,6 +149,9 @@ namespace DMXReceiver {
     
     // Detect mode with hysteresis
     DMXMode newMode = detectModeWithHysteresis(channels[CH_MODE]);
+    
+    // Check if system needs homing
+    bool homingRequired = !StepperController::isHomed() || StepperController::isLimitFaultActive();
     
     // Handle mode transitions
     if (newMode != currentMode) {
@@ -156,24 +176,37 @@ namespace DMXReceiver {
           break;
           
         case DMXMode::HOME:
-          // Initiate homing
-          {
+          // Only trigger homing if not already homing
+          if (!currentlyHoming) {
+            // Always allow homing command, even if system requires homing
             MotionCommand homeCmd;
             homeCmd.type = CommandType::HOME;
             homeCmd.timestamp = millis();
             homeCmd.commandId = 0;
-            xQueueSend(g_motionCommandQueue, &homeCmd, 0);
+            if (xQueueSend(g_motionCommandQueue, &homeCmd, 0) == pdTRUE) {
+              homingTriggeredByDMX = true;
+              Serial.println("[DMX] Homing command sent - DMX input will be ignored until complete");
+            }
           }
           break;
           
         case DMXMode::CONTROL:
-          // Will start processing position commands
+          // Check if system allows movement
+          if (homingRequired) {
+            Serial.println("[DMX] CONTROL mode blocked - homing required");
+            // Optionally send a stop command to ensure no movement
+            MotionCommand stopCmd;
+            stopCmd.type = CommandType::STOP;
+            stopCmd.timestamp = millis();
+            stopCmd.commandId = 0;
+            xQueueSend(g_motionCommandQueue, &stopCmd, 0);
+          }
           break;
       }
     }
     
-    // Process position control in CONTROL mode
-    if (currentMode == DMXMode::CONTROL) {
+    // Process position control in CONTROL mode only if system is homed
+    if (currentMode == DMXMode::CONTROL && !homingRequired) {
       // Calculate position from DMX values
       float positionPercent;
       if (use16BitPosition) {
@@ -195,8 +228,20 @@ namespace DMXReceiver {
       int32_t range = maxPos - minPos;
       int32_t targetPosition = minPos + (int32_t)((range * positionPercent) / 100.0f);
       
-      // Only send command if position changed significantly (prevent command flooding)
-      if (lastTargetPosition == -1 || abs(targetPosition - lastTargetPosition) > 2) {
+      // Get current position to check if we need to send a command
+      int32_t currentPos = StepperController::getCurrentPosition();
+      bool isMoving = StepperController::isMoving();
+      
+      // Check if position, speed, or acceleration changed significantly
+      bool positionChanged = (lastTargetPosition == -1 || abs(targetPosition - lastTargetPosition) > 2);
+      bool speedChanged = (abs(channels[CH_SPEED] - lastSpeedValue) > 2);  // Small threshold to prevent jitter
+      bool accelChanged = (abs(channels[CH_ACCELERATION] - lastAccelValue) > 2);
+      
+      // Only send speed/accel updates if we're moving or position is changing
+      bool needsUpdate = positionChanged || (isMoving && (speedChanged || accelChanged));
+      
+      // Send command if any parameter changed and update is needed
+      if (needsUpdate) {
         // Get current configuration for max values
         SystemConfig* config = SystemConfigMgr::getConfig();
         if (!config) return;
@@ -226,15 +271,28 @@ namespace DMXReceiver {
         // Send command to StepperController (non-blocking)
         if (xQueueSend(g_motionCommandQueue, &cmd, 0) == pdTRUE) {
           lastTargetPosition = targetPosition;
+          lastSpeedValue = channels[CH_SPEED];
+          lastAccelValue = channels[CH_ACCELERATION];
           
-          // Log periodically to avoid spam
+          // Log changes
           static uint32_t lastLogTime = 0;
-          if (millis() - lastLogTime > 1000) {
+          if (millis() - lastLogTime > 1000 || speedChanged || accelChanged) {
             lastLogTime = millis();
-            Serial.printf("[DMX] Motion: Pos=%d (%.1f%%), Spd=%.0f, Acc=%.0f\n",
+            Serial.printf("[DMX] Motion: Pos=%d (%.1f%%), Spd=%.0f, Acc=%.0f", 
               targetPosition, positionPercent, actualSpeed, actualAccel);
+            if (speedChanged) Serial.print(" [Speed Changed]");
+            if (accelChanged) Serial.print(" [Accel Changed]");
+            Serial.println();
           }
         }
+      }
+    } else if (currentMode == DMXMode::CONTROL && homingRequired) {
+      // Periodically remind that homing is required
+      static uint32_t lastHomingWarning = 0;
+      if (millis() - lastHomingWarning > 5000) {
+        lastHomingWarning = millis();
+        Serial.println("[DMX] Position control blocked - system requires homing");
+        Serial.println("[DMX] Set mode channel to HOME range (170-255) to initiate homing");
       }
     }
   }
@@ -290,9 +348,13 @@ namespace DMXReceiver {
       
       // Debug output every 10 seconds
       if (loopCount % 1000 == 0) {
-        Serial.printf("[DMX] Task alive - Connected: %s, Mode: %s\n", 
-          dmx.isConnected() ? "YES" : "NO",
-          currentMode == DMXMode::STOP ? "STOP" : (currentMode == DMXMode::CONTROL ? "CONTROL" : "HOME"));
+        if (homingInProgress) {
+          Serial.println("[DMX] Task alive - HOMING IN PROGRESS (DMX ignored)");
+        } else {
+          Serial.printf("[DMX] Task alive - Connected: %s, Mode: %s\n", 
+            dmx.isConnected() ? "YES" : "NO",
+            currentMode == DMXMode::STOP ? "STOP" : (currentMode == DMXMode::CONTROL ? "CONTROL" : "HOME"));
+        }
       }
       
       // Check if DMX is connected

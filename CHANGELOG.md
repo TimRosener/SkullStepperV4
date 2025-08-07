@@ -5,6 +5,24 @@ All notable changes to the SkullStepperV4 project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.6] - 2025-02-02
+
+### Changed
+- DMX behavior when homing is required (on boot or after E-STOP)
+- DMX position control is now disabled when system requires homing
+- DMX HOME command (mode channel 170-255) can still be sent to initiate homing
+- This allows DMX to trigger homing even when movement is otherwise blocked
+- **DMX input is completely ignored during homing sequence**
+- **Homing triggered by DMX only requires momentary signal (can return to STOP)**
+- **Prevents homing loops and ensures homing completes without interruption**
+
+### Added
+- **Dynamic DMX speed/acceleration control during motion**
+- Speed and acceleration changes from DMX now take effect immediately
+- Updates are applied even while motor is moving to a position
+- Small threshold (±2) prevents jitter from DMX signal noise
+- Clear console logging shows when speed or acceleration changes
+
 ## [4.1.5] - 2025-02-02
 
 ### Fixed

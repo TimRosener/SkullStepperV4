@@ -1,6 +1,6 @@
 # SkullStepperV4 - ESP32-S3 Closed-Loop Stepper Control System
 
-**Version**: 4.1.5  
+**Version**: 4.1.6  
 **Date**: 2025-02-02  
 **Status**: Production-Ready with DMX Development in Progress
 
@@ -1066,7 +1066,7 @@ attachInterrupt(digitalPinToInterrupt(RIGHT_LIMIT_PIN), rightLimitISR, FALLING);
 
 Use `PARAMS` command for full parameter details with ranges and defaults.
 
-## Current Status Summary (v4.1.5 - 2025-02-02)
+## Current Status Summary (v4.1.6 - 2025-02-02)
 
 ### 🏆 Production-Ready System
 
@@ -1117,6 +1117,7 @@ Use `PARAMS` command for full parameter details with ranges and defaults.
 - **Fixed DMX Speed/Acceleration Control**: StepperController now properly applies speed and acceleration values from DMX channels when executing motion commands (v4.1.3)
 - **Improved Web Interface**: Consolidated homing warnings, reorganized configuration tabs for better user experience (v4.1.4)
 - **Fixed Checkbox Visibility**: Auto-Home options now always visible in dedicated "Homing Options" section (v4.1.5)
+- **Improved DMX Safety**: DMX position control disabled when homing required, but HOME command still works (v4.1.6)
 
 - **WebInterface as Core Component**: Full web control with real-time updates
 - **Test Functions in Web UI**: TEST and TEST2 buttons for validation

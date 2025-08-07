@@ -191,8 +191,16 @@ CONTROL Mode:
 
 HOME Mode:
 - Trigger homing once
-- Return to previous mode after
-- Ignore position during homing
+- DMX is then COMPLETELY IGNORED during homing
+- Mode can return to STOP immediately (momentary trigger)
+- After homing completes, DMX processing resumes
+- Mode resets to STOP to prevent re-triggering
+
+HOMING IN PROGRESS State:
+- ALL DMX input ignored
+- Prevents any DMX commands from interfering
+- Ensures homing completes without interruption
+- Automatically exits when homing finishes
 ```
 
 ### Signal Loss Handling
@@ -215,6 +223,17 @@ void handleSignalLoss() {
 3. **Limit Override**: DMX cannot override safety limits
 4. **E-Stop Priority**: E-stop always takes precedence
 5. **Homing Safety**: Can't home while in motion
+6. **Homing Required States**: 
+   - When system is not homed (on boot or after configuration reset)
+   - When limit fault is active (after E-STOP or unexpected limit hit)
+   - DMX position control is disabled in these states
+   - DMX HOME command (mode 171-255) can still initiate homing
+   - This ensures DMX can always trigger homing when needed
+7. **Homing Sequence Protection**:
+   - Once homing starts, ALL DMX input is ignored
+   - DMX mode can return to STOP immediately after triggering HOME
+   - Prevents re-triggering or interruption of homing
+   - DMX processing automatically resumes after homing completes
 
 ## Timeline Estimate
 
@@ -292,3 +311,32 @@ void handleSignalLoss() {
 ---
 
 **Implementation Ready**: All design decisions made. Ready to start coding!
+
+## Dynamic Speed/Acceleration Control
+
+### Implementation Details (v4.1.6)
+
+DMX now supports dynamic speed and acceleration updates during motion without modifying the stepper library:
+
+1. **Change Detection**: Monitors speed (channel 3) and acceleration (channel 2) for changes > 2 units
+2. **Smart Updates**: Only sends updates when:
+   - Position changes (as before)
+   - Speed/accel changes while motor is moving
+   - Prevents unnecessary commands when stationary
+3. **Smooth Transitions**: Sends new MOVE_ABSOLUTE commands with same target but updated parameters
+4. **Console Feedback**: Logs show "[Speed Changed]" or "[Accel Changed]" tags
+
+```cpp
+// Tracks last values to detect changes
+static uint8_t lastSpeedValue = 0;
+static uint8_t lastAccelValue = 0;
+
+// Detects changes with threshold to prevent jitter
+bool speedChanged = (abs(channels[CH_SPEED] - lastSpeedValue) > 2);
+bool accelChanged = (abs(channels[CH_ACCELERATION] - lastAccelValue) > 2);
+
+// Only updates if moving or position changing
+bool needsUpdate = positionChanged || (isMoving && (speedChanged || accelChanged));
+```
+
+This allows real-time performance adjustments during shows without stopping motion.
