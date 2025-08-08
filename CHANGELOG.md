@@ -5,6 +5,14 @@ All notable changes to the SkullStepperV4 project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.12] - 2025-02-08
+
+### Fixed
+- Web interface status tabs not displaying due to JavaScript error
+- `showStatusTab()` function was using undefined `event` parameter
+- Status tab buttons now properly pass event parameter to handler
+- Added safety check for event.target to prevent errors
+
 ## [4.1.11] - 2025-02-08
 
 ### Added
@@ -14,15 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Speed: Shows speed in steps/s
   - Acceleration: Shows acceleration in steps/s²
   - Mode: Shows decoded mode (STOP/CONTROL/HOME) with color coding
-- DMX offset display showing actual channel offset (base channel - 1)
+- Tabbed interface for status panel (System Status / DMX Status tabs)
 
 ### Changed
-- DMX status now appears in main status panel with dedicated section
+- DMX status now appears in dedicated tab for cleaner interface
 - Mode display uses color coding: STOP (red), CONTROL (green), HOME (orange)
 - Simplified DMX configuration by removing unused dmxScale and dmxOffset parameters
+- "DMX Offset" label changed to "DMX Start Ch" for clarity
 
 ### Fixed
-- DMX offset now correctly displays the channel offset value
+- DMX start channel now correctly displays the configured channel number
 - Removed non-functional DMX scale factor from configuration
 - Cleaned up DMX position calculation to match actual system behavior
 

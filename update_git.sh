@@ -41,10 +41,10 @@ echo ""
 # Show recent changes summary
 echo "Recent changes:"
 echo "---------------"
-echo "✓ Added real-time DMX status display in web interface"
-echo "✓ Shows all 5 DMX channels with calculated values"
-echo "✓ Fixed DMX offset display to show correct channel offset"
-echo "✓ Removed unused dmxScale configuration from web interface"
+echo "✓ Fixed web interface status tabs not displaying"
+echo "✓ Corrected JavaScript error in showStatusTab() function"
+echo "✓ Status tabs now properly switch between System and DMX views"
+echo "✓ Added event parameter passing to tab click handlers"
 echo ""
 
 # Function to update version in a file
@@ -123,10 +123,10 @@ if [ -z "$1" ]; then
     echo "  ./update_git.sh \"Add: New DMX 16-bit position mode\" --minor --tag"
     echo ""
     echo "Recent fixes ready to commit:"
-    echo "  - DMX status display with real-time channel values"
-    echo "  - Calculated position, speed, and acceleration values"
-    echo "  - Mode decoding with color-coded display"
-    echo "  - Corrected DMX offset display"
+    echo "  - Web interface status tabs JavaScript error fix"
+    echo "  - showStatusTab() function now receives event parameter"
+    echo "  - Tab buttons properly pass event to handler"
+    echo "  - Added safety check for event.target usage"
     echo ""
     exit 1
 fi

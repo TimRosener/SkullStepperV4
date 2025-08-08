@@ -1,7 +1,7 @@
 // ============================================================================
 // File: skullstepperV4.ino - Thread-Safe Main Sketch with StepperController
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
-// Version: 4.1.11
+// Version: 4.1.12
 // Date: 2025-02-08
 // Author: Tim Rosener
 // Description: Main Arduino sketch with complete system integration
@@ -45,7 +45,7 @@ void setup() {
   Serial.println();
   Serial.println("============================================================================");
   Serial.println("SkullStepperV4 - ESP32-S3 Thread-Safe Stepper Control");
-  Serial.println("Version: 4.1.11 - Production Ready with DMX Status Display");
+  Serial.println("Version: 4.1.12 - Production Ready with Web Interface Tab Fix");
   Serial.println("Memory-Safe, Thread-Safe Architecture");
   Serial.println("============================================================================");
   

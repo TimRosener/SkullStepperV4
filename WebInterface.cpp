@@ -41,67 +41,79 @@ String WebInterface::getIndexHTML() {
         </header>
         
         <div class="panel">
-            <h2>System Status</h2>
-            <div class="status-grid">
-                <div class="status-item">
-                    <label>State:</label>
-                    <span id="systemState" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <label>Position:</label>
-                    <span id="currentPosition" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <label>Target:</label>
-                    <span id="targetPosition" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <label>Speed:</label>
-                    <span id="currentSpeed" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <label>Motor:</label>
-                    <span id="motorEnabled" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <label>Limits:</label>
-                    <span id="limitStatus" class="value">--</span>
+            <h2>Status</h2>
+            
+            <!-- Status tab buttons -->
+            <div class="status-tabs">
+                <button class="tab-btn active" onclick="showStatusTab('system', event)">System Status</button>
+                <button class="tab-btn" onclick="showStatusTab('dmx', event)">DMX Status</button>
+            </div>
+            
+            <!-- System Status Tab -->
+            <div id="system-status-tab" class="status-tab active">
+                <div class="status-grid">
+                    <div class="status-item">
+                        <label>State:</label>
+                        <span id="systemState" class="value">--</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Position:</label>
+                        <span id="currentPosition" class="value">--</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Target:</label>
+                        <span id="targetPosition" class="value">--</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Speed:</label>
+                        <span id="currentSpeed" class="value">--</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Motor:</label>
+                        <span id="motorEnabled" class="value">--</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Limits:</label>
+                        <span id="limitStatus" class="value">--</span>
+                    </div>
                 </div>
             </div>
             
-            <h3 style="margin-top: 20px;">DMX Status</h3>
-            <div class="status-grid">
-                <div class="status-item">
-                    <label>DMX Active:</label>
-                    <span id="dmxActive" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <label>DMX Offset:</label>
-                    <span id="dmxOffset" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <label>Ch1 (Position):</label>
-                    <span id="dmxCh1" class="value">--</span>
-                    <span id="dmxPos" class="calc-text">--</span>
-                </div>
-                <div class="status-item">
-                    <label>Ch2 (Fine):</label>
-                    <span id="dmxCh2" class="value">--</span>
-                </div>
-                <div class="status-item">
-                    <label>Ch3 (Acceleration):</label>
-                    <span id="dmxCh3" class="value">--</span>
-                    <span id="dmxAccel" class="calc-text">--</span>
-                </div>
-                <div class="status-item">
-                    <label>Ch4 (Speed):</label>
-                    <span id="dmxCh4" class="value">--</span>
-                    <span id="dmxSpeed" class="calc-text">--</span>
-                </div>
-                <div class="status-item">
-                    <label>Ch5 (Mode):</label>
-                    <span id="dmxCh5" class="value">--</span>
-                    <span id="dmxMode" class="mode-text">--</span>
+            <!-- DMX Status Tab -->
+            <div id="dmx-status-tab" class="status-tab">
+                <div class="status-grid">
+                    <div class="status-item">
+                        <label>DMX Active:</label>
+                        <span id="dmxActive" class="value">--</span>
+                    </div>
+                    <div class="status-item">
+                        <label>DMX Start Ch:</label>
+                        <span id="dmxOffset" class="value">--</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Ch1 (Position):</label>
+                        <span id="dmxCh1" class="value">--</span>
+                        <span id="dmxPos" class="calc-text">--</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Ch2 (Fine):</label>
+                        <span id="dmxCh2" class="value">--</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Ch3 (Acceleration):</label>
+                        <span id="dmxCh3" class="value">--</span>
+                        <span id="dmxAccel" class="calc-text">--</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Ch4 (Speed):</label>
+                        <span id="dmxCh4" class="value">--</span>
+                        <span id="dmxSpeed" class="calc-text">--</span>
+                    </div>
+                    <div class="status-item">
+                        <label>Ch5 (Mode):</label>
+                        <span id="dmxCh5" class="value">--</span>
+                        <span id="dmxMode" class="mode-text">--</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -624,6 +636,13 @@ h1 {
     border-bottom: 2px solid var(--border-color);
 }
 
+.status-tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--border-color);
+}
+
 .tab-btn {
     padding: 10px 20px;
     background: transparent;
@@ -651,6 +670,15 @@ h1 {
 }
 
 .config-tab.active {
+    display: block;
+}
+
+.status-tab {
+    display: none;
+    animation: fadeIn 0.3s;
+}
+
+.status-tab.active {
     display: block;
 }
 
@@ -1153,6 +1181,26 @@ function showConfigTab(tabName) {
     // Update limits display when motion tab is selected (since it now contains limits)
     if (tabName === 'motion') {
         updateLimitsDisplay();
+    }
+}
+
+function showStatusTab(tabName, event) {
+    // Hide all status tabs
+    document.querySelectorAll('.status-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Remove active class from status tab buttons only
+    document.querySelectorAll('.status-tabs .tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Show selected tab
+    document.getElementById(tabName + '-status-tab').classList.add('active');
+    
+    // Add active class to clicked button
+    if (event && event.target) {
+        event.target.classList.add('active');
     }
 }
 
@@ -2336,14 +2384,14 @@ void WebInterface::getSystemStatus(JsonDocument& doc) {
     }
     
     doc["dmx"]["active"] = dmxActive;
-    doc["dmx"]["offset"] = DMXReceiver::getBaseChannel() - 1;  // Base channel minus 1 for offset
+    doc["dmx"]["offset"] = DMXReceiver::getBaseChannel();  // Show the actual base channel
     JsonArray channels = doc["dmx"].createNestedArray("channels");
     for (int i = 0; i < 5; i++) {
         channels.add(dmxChannels[i]);
     }
     
     // Add system information
-    doc["systemInfo"]["version"] = "4.1.11";
+    doc["systemInfo"]["version"] = "4.1.12";
     doc["systemInfo"]["hardware"] = "ESP32-S3-WROOM-1";
     doc["systemInfo"]["uptime"] = millis();
     doc["systemInfo"]["freeHeap"] = ESP.getFreeHeap();
@@ -2379,7 +2427,7 @@ void WebInterface::getSystemConfig(JsonDocument& doc) {
 }
 
 void WebInterface::getSystemInfo(JsonDocument& doc) {
-    doc["version"] = "4.1.11";
+    doc["version"] = "4.1.12";
     doc["hardware"] = "ESP32-S3-WROOM-1";
     doc["uptime"] = millis();
     doc["freeHeap"] = ESP.getFreeHeap();
