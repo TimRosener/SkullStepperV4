@@ -27,9 +27,15 @@ That's it! Only one additional library needed (WebServer is built into ESP32 cor
 ## Features
 
 - **Real-time status display** - Position, speed, limits, motor state
+- **DMX status monitoring** - Shows all 5 DMX channels with calculated values:
+  - Channel 1 (Position): Raw value + calculated position in steps
+  - Channel 2 (Fine): Fine position for 16-bit mode
+  - Channel 3 (Acceleration): Raw value + calculated acceleration in steps/s²
+  - Channel 4 (Speed): Raw value + calculated speed in steps/s
+  - Channel 5 (Mode): Raw value + decoded mode (STOP/CONTROL/HOME)
 - **Motion control** - Move, jog, home, stop, emergency stop
 - **Motor enable/disable** - Control motor power
-- **Configuration** - Adjust max speed and acceleration
+- **Configuration** - Adjust max speed, acceleration, and DMX settings
 - **Auto-reconnecting WebSocket** - Handles disconnections gracefully
 - **Responsive design** - Works on phones, tablets, and computers
 - **10Hz status updates** - Smooth real-time feedback

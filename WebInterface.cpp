@@ -8,6 +8,7 @@
 #include "WebInterface.h"
 #include "StepperController.h"  // Ensure StepperController interface is included
 #include "SerialInterface.h"    // For processCommand function
+#include "DMXReceiver.h"        // For DMX status information
 #include <esp_random.h>         // For esp_random() function
 
 #ifdef ENABLE_WEB_INTERFACE
@@ -65,6 +66,42 @@ String WebInterface::getIndexHTML() {
                 <div class="status-item">
                     <label>Limits:</label>
                     <span id="limitStatus" class="value">--</span>
+                </div>
+            </div>
+            
+            <h3 style="margin-top: 20px;">DMX Status</h3>
+            <div class="status-grid">
+                <div class="status-item">
+                    <label>DMX Active:</label>
+                    <span id="dmxActive" class="value">--</span>
+                </div>
+                <div class="status-item">
+                    <label>DMX Offset:</label>
+                    <span id="dmxOffset" class="value">--</span>
+                </div>
+                <div class="status-item">
+                    <label>Ch1 (Position):</label>
+                    <span id="dmxCh1" class="value">--</span>
+                    <span id="dmxPos" class="calc-text">--</span>
+                </div>
+                <div class="status-item">
+                    <label>Ch2 (Fine):</label>
+                    <span id="dmxCh2" class="value">--</span>
+                </div>
+                <div class="status-item">
+                    <label>Ch3 (Acceleration):</label>
+                    <span id="dmxCh3" class="value">--</span>
+                    <span id="dmxAccel" class="calc-text">--</span>
+                </div>
+                <div class="status-item">
+                    <label>Ch4 (Speed):</label>
+                    <span id="dmxCh4" class="value">--</span>
+                    <span id="dmxSpeed" class="calc-text">--</span>
+                </div>
+                <div class="status-item">
+                    <label>Ch5 (Mode):</label>
+                    <span id="dmxCh5" class="value">--</span>
+                    <span id="dmxMode" class="mode-text">--</span>
                 </div>
             </div>
         </div>
@@ -249,14 +286,6 @@ String WebInterface::getIndexHTML() {
                     <input type="number" id="dmxChannel" min="1" max="512" step="1">
                 </div>
                 <div class="config-item">
-                    <label for="dmxScale">DMX Scale Factor:</label>
-                    <input type="number" id="dmxScale" step="0.1" placeholder="Steps per DMX unit">
-                </div>
-                <div class="config-item">
-                    <label for="dmxOffset">DMX Offset:</label>
-                    <input type="number" id="dmxOffset" step="1" placeholder="Position offset in steps">
-                </div>
-                <div class="config-item">
                     <label for="dmxTimeout">DMX Timeout:</label>
                     <input type="number" id="dmxTimeout" min="100" max="60000" step="100" placeholder="Milliseconds">
                     <small class="param-info">Time before DMX signal loss is detected (100-60000 ms)</small>
@@ -390,6 +419,25 @@ h1 {
 .status-item .value {
     color: var(--primary-color);
     font-weight: bold;
+}
+
+/* DMX-specific styling */
+#dmxOffset {
+    color: var(--warning-color);
+}
+
+.mode-text {
+    margin-left: 10px;
+    font-size: 0.85em;
+    color: var(--text-dim);
+    font-style: italic;
+}
+
+.calc-text {
+    margin-left: 10px;
+    font-size: 0.85em;
+    color: var(--primary-color);
+    font-weight: normal;
 }
 
 .info-grid {
@@ -764,6 +812,84 @@ function updateUI(data) {
         document.getElementById('limitStatus').textContent = status;
     }
     
+    // Update DMX status
+    if (data.dmx) {
+        const dmxActiveEl = document.getElementById('dmxActive');
+        dmxActiveEl.textContent = data.dmx.active ? 'YES' : 'NO';
+        dmxActiveEl.style.color = data.dmx.active ? 'var(--success-color)' : 'var(--text-dim)';
+        
+        document.getElementById('dmxOffset').textContent = data.dmx.offset || '0';
+        
+        // Update channel values
+        if (data.dmx.channels) {
+            // Channel 1 & 2: Position (with calculations if we have position limits)
+            const ch1Value = data.dmx.channels[0] || 0;
+            const ch2Value = data.dmx.channels[1] || 0;
+            document.getElementById('dmxCh1').textContent = ch1Value;
+            document.getElementById('dmxCh2').textContent = ch2Value;
+            
+            // Calculate position in steps
+            if (data.positionLimits && data.positionLimits.valid && data.config) {
+                // DMX position is always percentage-based in this system
+                const positionPercent = (ch1Value / 255.0) * 100.0;
+                
+                // Use configured position limits
+                const minPos = data.config.minPosition || data.positionLimits.min;
+                const maxPos = data.config.maxPosition || data.positionLimits.max;
+                const range = maxPos - minPos;
+                const targetPosition = minPos + Math.round((range * positionPercent) / 100.0);
+                
+                document.getElementById('dmxPos').textContent = `(${targetPosition} steps)`;
+            } else {
+                document.getElementById('dmxPos').textContent = '';
+            }
+            
+            // Channel 3: Acceleration
+            const ch3Value = data.dmx.channels[2] || 0;
+            document.getElementById('dmxCh3').textContent = ch3Value;
+            if (data.config && data.config.acceleration) {
+                const accelPercent = (ch3Value / 255.0) * 100.0;
+                const accelValue = Math.round((data.config.acceleration * accelPercent) / 100.0);
+                document.getElementById('dmxAccel').textContent = `(${accelValue} steps/s²)`;
+            } else {
+                document.getElementById('dmxAccel').textContent = '';
+            }
+            
+            // Channel 4: Speed
+            const ch4Value = data.dmx.channels[3] || 0;
+            document.getElementById('dmxCh4').textContent = ch4Value;
+            if (data.config && data.config.maxSpeed) {
+                const speedPercent = (ch4Value / 255.0) * 100.0;
+                const speedValue = Math.round((data.config.maxSpeed * speedPercent) / 100.0);
+                document.getElementById('dmxSpeed').textContent = `(${speedValue} steps/s)`;
+            } else {
+                document.getElementById('dmxSpeed').textContent = '';
+            }
+            
+            // Channel 5 with mode translation
+            const ch5Value = data.dmx.channels[4] || 0;
+            document.getElementById('dmxCh5').textContent = ch5Value;
+            
+            // Decode mode based on DMXReceiver.h thresholds:
+            // 0-84: STOP, 85-170: CONTROL, 171-255: HOME
+            let modeText = '';
+            let modeColor = '';
+            if (ch5Value <= 84) {
+                modeText = '(STOP)';
+                modeColor = 'var(--danger-color)';
+            } else if (ch5Value <= 170) {
+                modeText = '(CONTROL)';
+                modeColor = 'var(--success-color)';
+            } else {
+                modeText = '(HOME)';
+                modeColor = 'var(--warning-color)';
+            }
+            const dmxModeEl = document.getElementById('dmxMode');
+            dmxModeEl.textContent = modeText;
+            dmxModeEl.style.color = modeColor;
+        }
+    }
+    
     // Update system information
     if (data.systemInfo) {
         if (data.systemInfo.version) {
@@ -837,12 +963,6 @@ function updateUI(data) {
         // DMX parameters
         if (data.config.dmxChannel !== undefined) {
             document.getElementById('dmxChannel').value = data.config.dmxChannel;
-        }
-        if (data.config.dmxScale !== undefined) {
-            document.getElementById('dmxScale').value = data.config.dmxScale;
-        }
-        if (data.config.dmxOffset !== undefined) {
-            document.getElementById('dmxOffset').value = data.config.dmxOffset;
         }
         if (data.config.dmxTimeout !== undefined) {
             document.getElementById('dmxTimeout').value = data.config.dmxTimeout;
@@ -981,10 +1101,8 @@ function applyConfig() {
         config.jerk = parseInt(document.getElementById('jerk').value);
         config.emergencyDeceleration = parseInt(document.getElementById('emergencyDeceleration').value);
     } else if (activeTab === 'dmx-tab') {
-        // DMX tab - now includes DMX timeout
+        // DMX tab - only channel and timeout now
         config.dmxChannel = parseInt(document.getElementById('dmxChannel').value);
-        config.dmxScale = parseFloat(document.getElementById('dmxScale').value);
-        config.dmxOffset = parseInt(document.getElementById('dmxOffset').value);
         config.dmxTimeout = parseInt(document.getElementById('dmxTimeout').value);
     }
     
@@ -2203,8 +2321,6 @@ void WebInterface::getSystemStatus(JsonDocument& doc) {
     doc["config"]["jerk"] = config->defaultProfile.jerk;
     doc["config"]["emergencyDeceleration"] = config->emergencyDeceleration;
     doc["config"]["dmxChannel"] = config->dmxStartChannel;
-    doc["config"]["dmxScale"] = config->dmxScale;
-    doc["config"]["dmxOffset"] = config->dmxOffset;
     doc["config"]["dmxTimeout"] = config->dmxTimeout;
     doc["config"]["minPosition"] = config->minPosition;
     doc["config"]["maxPosition"] = config->maxPosition;
@@ -2212,8 +2328,22 @@ void WebInterface::getSystemStatus(JsonDocument& doc) {
     doc["config"]["autoHomeOnBoot"] = config->autoHomeOnBoot;
     doc["config"]["autoHomeOnEstop"] = config->autoHomeOnEstop;
     
+    // Add DMX information
+    uint8_t dmxChannels[5] = {0};
+    bool dmxActive = DMXReceiver::isSignalPresent();
+    if (dmxActive) {
+        DMXReceiver::getChannelCache(dmxChannels);
+    }
+    
+    doc["dmx"]["active"] = dmxActive;
+    doc["dmx"]["offset"] = DMXReceiver::getBaseChannel() - 1;  // Base channel minus 1 for offset
+    JsonArray channels = doc["dmx"].createNestedArray("channels");
+    for (int i = 0; i < 5; i++) {
+        channels.add(dmxChannels[i]);
+    }
+    
     // Add system information
-    doc["systemInfo"]["version"] = "4.1.6";
+    doc["systemInfo"]["version"] = "4.1.11";
     doc["systemInfo"]["hardware"] = "ESP32-S3-WROOM-1";
     doc["systemInfo"]["uptime"] = millis();
     doc["systemInfo"]["freeHeap"] = ESP.getFreeHeap();
@@ -2242,8 +2372,6 @@ void WebInterface::getSystemConfig(JsonDocument& doc) {
     
     // DMX config
     doc["dmx"]["channel"] = config->dmxStartChannel;
-    doc["dmx"]["scale"] = config->dmxScale;
-    doc["dmx"]["offset"] = config->dmxOffset;
     doc["dmx"]["timeout"] = config->dmxTimeout;
     
     // Safety config
@@ -2251,7 +2379,7 @@ void WebInterface::getSystemConfig(JsonDocument& doc) {
 }
 
 void WebInterface::getSystemInfo(JsonDocument& doc) {
-    doc["version"] = "4.1.6";
+    doc["version"] = "4.1.11";
     doc["hardware"] = "ESP32-S3-WROOM-1";
     doc["uptime"] = millis();
     doc["freeHeap"] = ESP.getFreeHeap();
@@ -2337,20 +2465,9 @@ bool WebInterface::updateConfiguration(const JsonDocument& params) {
         Serial.printf("[WebInterface] Setting emergencyDeceleration to: %.1f\n", emergDecel);
     }
     
-    // Update DMX parameters
     if (params.containsKey("dmxChannel")) {
         config->dmxStartChannel = params["dmxChannel"];
         Serial.printf("[WebInterface] Setting dmxChannel to: %d\n", config->dmxStartChannel);
-    }
-    
-    if (params.containsKey("dmxScale")) {
-        config->dmxScale = params["dmxScale"];
-        Serial.printf("[WebInterface] Setting dmxScale to: %.3f\n", config->dmxScale);
-    }
-    
-    if (params.containsKey("dmxOffset")) {
-        config->dmxOffset = params["dmxOffset"];
-        Serial.printf("[WebInterface] Setting dmxOffset to: %d\n", config->dmxOffset);
     }
     
     if (params.containsKey("dmxTimeout")) {

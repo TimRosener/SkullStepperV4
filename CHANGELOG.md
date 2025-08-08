@@ -5,6 +5,31 @@ All notable changes to the SkullStepperV4 project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.11] - 2025-02-08
+
+### Added
+- Real-time DMX status display in web interface showing all 5 channels
+- Calculated values display for DMX channels:
+  - Position: Shows target position in steps
+  - Speed: Shows speed in steps/s
+  - Acceleration: Shows acceleration in steps/s²
+  - Mode: Shows decoded mode (STOP/CONTROL/HOME) with color coding
+- DMX offset display showing actual channel offset (base channel - 1)
+
+### Changed
+- DMX status now appears in main status panel with dedicated section
+- Mode display uses color coding: STOP (red), CONTROL (green), HOME (orange)
+- Simplified DMX configuration by removing unused dmxScale and dmxOffset parameters
+
+### Fixed
+- DMX offset now correctly displays the channel offset value
+- Removed non-functional DMX scale factor from configuration
+- Cleaned up DMX position calculation to match actual system behavior
+
+### Removed
+- DMX Scale Factor configuration (was not implemented in motion control)
+- DMX Offset configuration for position (system uses percentage-based mapping)
+
 ## [4.1.10] - 2025-02-07
 
 ### Fixed

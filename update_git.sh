@@ -41,10 +41,10 @@ echo ""
 # Show recent changes summary
 echo "Recent changes:"
 echo "---------------"
-echo "✓ Fixed DMX idle timeout issue - console sleep mode detection"
-echo "✓ Enhanced DMX debug output - 1-second updates with all values"
-echo "✓ Removed repetitive StepperController move debug messages"
-echo "✓ DMX now uses system defaults when speed/accel channels are 0"
+echo "✓ Added real-time DMX status display in web interface"
+echo "✓ Shows all 5 DMX channels with calculated values"
+echo "✓ Fixed DMX offset display to show correct channel offset"
+echo "✓ Removed unused dmxScale configuration from web interface"
 echo ""
 
 # Function to update version in a file
@@ -123,10 +123,10 @@ if [ -z "$1" ]; then
     echo "  ./update_git.sh \"Add: New DMX 16-bit position mode\" --minor --tag"
     echo ""
     echo "Recent fixes ready to commit:"
-    echo "  - DMX console sleep mode detection and handling"
-    echo "  - Use system defaults when DMX speed/accel channels are 0"
-    echo "  - Enhanced DMX debug output format"
-    echo "  - Removed repetitive move command debug messages"
+    echo "  - DMX status display with real-time channel values"
+    echo "  - Calculated position, speed, and acceleration values"
+    echo "  - Mode decoding with color-coded display"
+    echo "  - Corrected DMX offset display"
     echo ""
     exit 1
 fi
