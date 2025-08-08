@@ -41,10 +41,10 @@ echo ""
 # Show recent changes summary
 echo "Recent changes:"
 echo "---------------"
-echo "✓ Fixed web interface status tabs not displaying"
-echo "✓ Corrected JavaScript error in showStatusTab() function"
-echo "✓ Status tabs now properly switch between System and DMX views"
-echo "✓ Added event parameter passing to tab click handlers"
+echo "✓ Added System Diagnostics tab to web interface"
+echo "✓ Real-time memory monitoring with color-coded status"
+echo "✓ Task health display for all system components"
+echo "✓ System information including CPU, flash, and reset reason"
 echo ""
 
 # Function to update version in a file
@@ -123,10 +123,10 @@ if [ -z "$1" ]; then
     echo "  ./update_git.sh \"Add: New DMX 16-bit position mode\" --minor --tag"
     echo ""
     echo "Recent fixes ready to commit:"
-    echo "  - Web interface status tabs JavaScript error fix"
-    echo "  - showStatusTab() function now receives event parameter"
-    echo "  - Tab buttons properly pass event to handler"
-    echo "  - Added safety check for event.target usage"
+    echo "  - System Diagnostics tab with memory and task monitoring"
+    echo "  - Real-time heap memory display with percentage"
+    echo "  - Task status for StepperCtrl, DMX, Web, and Broadcast"
+    echo "  - CPU frequency, flash size, and reset reason display"
     echo ""
     exit 1
 fi

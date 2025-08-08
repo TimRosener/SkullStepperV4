@@ -1,6 +1,6 @@
 # SkullStepperV4 - ESP32-S3 Closed-Loop Stepper Control System
 
-**Version**: 4.1.12  
+**Version**: 4.1.13  
 **Date**: 2025-02-08  
 **Status**: Production-Ready with DMX Development in Progress
 
@@ -1066,7 +1066,7 @@ attachInterrupt(digitalPinToInterrupt(RIGHT_LIMIT_PIN), rightLimitISR, FALLING);
 
 Use `PARAMS` command for full parameter details with ranges and defaults.
 
-## Current Status Summary (v4.1.12 - 2025-02-08)
+## Current Status Summary (v4.1.13 - 2025-02-08)
 
 ### 🏆 Production-Ready System
 

@@ -1,52 +1,43 @@
-// Fix for the status tabs visibility issue
-// The problem is in the WebInterface.cpp file
+// Fix for the status tabs visibility issue - RESOLVED in v4.1.12
+// The problem was in the WebInterface.cpp file
 
 // Issue found:
-// 1. The HTML structure is correct with proper tab buttons and content divs
-// 2. The CSS has styling for .status-tabs but might have display issues
-// 3. The JavaScript showStatusTab() function is implemented correctly
+// The JavaScript showStatusTab() function was using event.target without 
+// having the event parameter passed from the onclick handlers.
 
-// The fix needed in getMainCSS() function:
-// Make sure the .status-tab and .status-tab.active CSS rules are properly defined
+// Fix applied:
+// 1. Updated onclick handlers to pass event: onclick="showStatusTab('system', event)"
+// 2. Updated function signature: function showStatusTab(tabName, event)
+// 3. Added safety check: if (event && event.target)
 
-// Here's the corrected CSS section that should be added/verified in getMainCSS():
+// VERIFIED: The CSS was already correct with proper .status-tab rules.
 
-/*
-.status-tabs {
-    display: flex;
-    gap: 5px;
-    margin-bottom: 20px;
-    border-bottom: 2px solid var(--border-color);
-}
+// ============================================================================
+// System Diagnostics Tab Implementation - Added in v4.1.13
+// ============================================================================
 
-.status-tab {
-    display: none;
-    animation: fadeIn 0.3s;
-}
-
-.status-tab.active {
-    display: block;
-}
-*/
-
-// Additionally, in the HTML, the initial state should have:
-// - First tab button with class="tab-btn active"
-// - First tab content div with class="status-tab active"
-
-// This is already correctly implemented in the code, so the issue is likely
-// that the .status-tab CSS rules are missing or incomplete.
-
-// TO FIX:
-// In WebInterface.cpp, in the getMainCSS() function, verify that after the
-// .config-tab rules, there are corresponding .status-tab rules:
-
-/*
-.status-tab {
-    display: none;
-    animation: fadeIn 0.3s;
-}
-
-.status-tab.active {
-    display: block;
-}
-*/
+// New features added:
+// 1. Third tab "Diagnostics" in the status section
+// 2. Memory status display:
+//    - Free heap with percentage and color coding
+//    - Total heap size
+//    - Minimum free heap since boot
+//    - Largest allocatable block (fragmentation indicator)
+// 
+// 3. Task health monitoring:
+//    - StepperCtrl [Core 0] - shows running status
+//    - DMXReceiver [Core 0] - shows running status
+//    - WebServer [Core 1] - shows running status with stack info
+//    - Broadcast [Core 1] - shows running status with stack info
+//
+// 4. System information:
+//    - CPU Model (ESP32-S3)
+//    - CPU Frequency
+//    - Flash Size
+//    - Reset Reason (Power On, Software Reset, etc.)
+//
+// Implementation notes:
+// - Task handles for StepperController and DMXReceiver are not directly accessible
+// - Used proxy indicators (motion state, DMX state) to determine if tasks are running
+// - WebInterface tasks have direct access to handles for stack monitoring
+// - Memory percentage color coding: <20% red, <40% yellow, >=40% green

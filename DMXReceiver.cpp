@@ -1,7 +1,7 @@
 // ============================================================================
 // File: DMXReceiver.cpp
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
-// Version: 4.1.12
+// Version: 4.1.13
 // Date: 2025-02-03
 // Author: Tim Rosener
 // Description: DMXReceiver module implementation - DMX512 signal reception

@@ -5,6 +5,20 @@ All notable changes to the SkullStepperV4 project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.13] - 2025-02-08
+
+### Added
+- System Diagnostics tab in web interface status section
+- Real-time memory status display with percentage and color coding
+- Task health monitoring showing running status for all system tasks
+- System information display (CPU model, frequency, flash size, reset reason)
+- Memory fragmentation tracking with largest allocatable block size
+- Minimum free heap tracking since boot
+
+### Changed
+- Status section now has three tabs: System Status, DMX Status, and Diagnostics
+- Memory percentage color changes based on available memory (red < 20%, yellow < 40%, green >= 40%)
+
 ## [4.1.12] - 2025-02-08
 
 ### Fixed

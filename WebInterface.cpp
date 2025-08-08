@@ -10,6 +10,7 @@
 #include "SerialInterface.h"    // For processCommand function
 #include "DMXReceiver.h"        // For DMX status information
 #include <esp_random.h>         // For esp_random() function
+#include <esp_system.h>         // For esp_reset_reason()
 
 #ifdef ENABLE_WEB_INTERFACE
 
@@ -47,6 +48,7 @@ String WebInterface::getIndexHTML() {
             <div class="status-tabs">
                 <button class="tab-btn active" onclick="showStatusTab('system', event)">System Status</button>
                 <button class="tab-btn" onclick="showStatusTab('dmx', event)">DMX Status</button>
+                <button class="tab-btn" onclick="showStatusTab('diagnostics', event)">Diagnostics</button>
             </div>
             
             <!-- System Status Tab -->
@@ -113,6 +115,72 @@ String WebInterface::getIndexHTML() {
                         <label>Ch5 (Mode):</label>
                         <span id="dmxCh5" class="value">--</span>
                         <span id="dmxMode" class="mode-text">--</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Diagnostics Tab -->
+            <div id="diagnostics-status-tab" class="status-tab">
+                <div class="diagnostics-grid">
+                    <div class="diag-section">
+                        <h4>Memory Status</h4>
+                        <div class="diag-item">
+                            <label>Free Heap:</label>
+                            <span id="diagFreeHeap" class="value">--</span>
+                            <span id="diagHeapPercent" class="percent-text">--</span>
+                        </div>
+                        <div class="diag-item">
+                            <label>Total Heap:</label>
+                            <span id="diagTotalHeap" class="value">--</span>
+                        </div>
+                        <div class="diag-item">
+                            <label>Min Free:</label>
+                            <span id="diagMinFree" class="value">--</span>
+                        </div>
+                        <div class="diag-item">
+                            <label>Largest Block:</label>
+                            <span id="diagMaxBlock" class="value">--</span>
+                        </div>
+                    </div>
+                    
+                    <div class="diag-section">
+                        <h4>Task Health</h4>
+                        <div class="diag-item">
+                            <label>StepperCtrl [Core 0]:</label>
+                            <span id="taskStepperStatus" class="task-status">--</span>
+                        </div>
+                        <div class="diag-item">
+                            <label>DMXReceiver [Core 0]:</label>
+                            <span id="taskDMXStatus" class="task-status">--</span>
+                        </div>
+                        <div class="diag-item">
+                            <label>WebServer [Core 1]:</label>
+                            <span id="taskWebStatus" class="task-status">--</span>
+                        </div>
+                        <div class="diag-item">
+                            <label>Broadcast [Core 1]:</label>
+                            <span id="taskBroadcastStatus" class="task-status">--</span>
+                        </div>
+                    </div>
+                    
+                    <div class="diag-section">
+                        <h4>System Information</h4>
+                        <div class="diag-item">
+                            <label>CPU Model:</label>
+                            <span id="diagCPUModel" class="value">--</span>
+                        </div>
+                        <div class="diag-item">
+                            <label>CPU Frequency:</label>
+                            <span id="diagCPUFreq" class="value">--</span>
+                        </div>
+                        <div class="diag-item">
+                            <label>Flash Size:</label>
+                            <span id="diagFlashSize" class="value">--</span>
+                        </div>
+                        <div class="diag-item">
+                            <label>Reset Reason:</label>
+                            <span id="diagResetReason" class="value">--</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -687,6 +755,70 @@ h1 {
     to { opacity: 1; }
 }
 
+/* Diagnostics tab styling */
+.diagnostics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.diag-section {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 15px;
+    border: 1px solid var(--border-color);
+}
+
+.diag-section h4 {
+    color: var(--primary-color);
+    margin: 0 0 15px 0;
+    font-size: 1.1em;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+}
+
+.diag-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.diag-item:last-child {
+    border-bottom: none;
+}
+
+.diag-item label {
+    color: var(--text-dim);
+    font-size: 0.9em;
+}
+
+.diag-item .value {
+    color: var(--primary-color);
+    font-weight: bold;
+    font-size: 0.9em;
+}
+
+.percent-text {
+    color: var(--success-color);
+    font-size: 0.85em;
+    margin-left: 10px;
+}
+
+.task-status {
+    font-size: 0.85em;
+    font-weight: bold;
+}
+
+.task-status.running {
+    color: var(--success-color);
+}
+
+.task-status.error {
+    color: var(--danger-color);
+}
+
 footer {
     text-align: center;
     padding-top: 20px;
@@ -795,6 +927,19 @@ function formatMemory(bytes) {
     } else {
         return bytes + ' B';
     }
+}
+
+// Helper function to get reset reason string
+function getResetReasonString(reason) {
+    const reasons = {
+        1: 'Power On',
+        3: 'Software Reset',
+        4: 'Watchdog Reset',
+        5: 'Deep Sleep',
+        6: 'Brown Out',
+        7: 'SDIO Reset'
+    };
+    return reasons[reason] || 'Unknown';
 }
 
 function updateUI(data) {
@@ -937,6 +1082,86 @@ function updateUI(data) {
         }
         if (data.systemInfo.wifiClients !== undefined) {
             document.getElementById('wifiClients').textContent = data.systemInfo.wifiClients + ' / ' + (data.systemInfo.maxClients || 2);
+        }
+    }
+    
+    // Update diagnostics tab if data is available
+    if (data.diagnostics) {
+        // Memory information
+        if (data.diagnostics.memory) {
+            const mem = data.diagnostics.memory;
+            document.getElementById('diagFreeHeap').textContent = formatMemory(mem.freeHeap);
+            document.getElementById('diagTotalHeap').textContent = formatMemory(mem.totalHeap);
+            document.getElementById('diagMinFree').textContent = formatMemory(mem.minFreeHeap);
+            document.getElementById('diagMaxBlock').textContent = formatMemory(mem.maxAllocHeap);
+            
+            // Calculate percentage
+            const percent = ((mem.freeHeap / mem.totalHeap) * 100).toFixed(1);
+            const percentEl = document.getElementById('diagHeapPercent');
+            percentEl.textContent = `(${percent}%)`;
+            
+            // Color code based on percentage
+            if (percent < 20) {
+                percentEl.style.color = 'var(--danger-color)';
+            } else if (percent < 40) {
+                percentEl.style.color = 'var(--warning-color)';
+            } else {
+                percentEl.style.color = 'var(--success-color)';
+            }
+        }
+        
+        // Task information
+        if (data.diagnostics.tasks) {
+            const tasks = data.diagnostics.tasks;
+            
+            // StepperController
+            const stepperEl = document.getElementById('taskStepperStatus');
+            if (tasks.stepperExists) {
+                stepperEl.textContent = `✓ Running (Stack: ${tasks.stepperStack || 'N/A'} bytes free)`;
+                stepperEl.className = 'task-status running';
+            } else {
+                stepperEl.textContent = '✗ Not running';
+                stepperEl.className = 'task-status error';
+            }
+            
+            // DMXReceiver
+            const dmxEl = document.getElementById('taskDMXStatus');
+            if (tasks.dmxExists) {
+                dmxEl.textContent = `✓ Running (Stack: ${tasks.dmxStack || 'N/A'} bytes free)`;
+                dmxEl.className = 'task-status running';
+            } else {
+                dmxEl.textContent = '✗ Not running';
+                dmxEl.className = 'task-status error';
+            }
+            
+            // WebServer
+            const webEl = document.getElementById('taskWebStatus');
+            if (tasks.webExists) {
+                webEl.textContent = `✓ Running (Stack: ${tasks.webStack || 'N/A'} bytes free)`;
+                webEl.className = 'task-status running';
+            } else {
+                webEl.textContent = '✗ Not running';
+                webEl.className = 'task-status error';
+            }
+            
+            // Broadcast
+            const broadcastEl = document.getElementById('taskBroadcastStatus');
+            if (tasks.broadcastExists) {
+                broadcastEl.textContent = `✓ Running (Stack: ${tasks.broadcastStack || 'N/A'} bytes free)`;
+                broadcastEl.className = 'task-status running';
+            } else {
+                broadcastEl.textContent = '✗ Not running';
+                broadcastEl.className = 'task-status error';
+            }
+        }
+        
+        // System information
+        if (data.diagnostics.system) {
+            const sys = data.diagnostics.system;
+            document.getElementById('diagCPUModel').textContent = 'ESP32-S3';
+            document.getElementById('diagCPUFreq').textContent = `${sys.cpuFreq || 240} MHz`;
+            document.getElementById('diagFlashSize').textContent = formatMemory(sys.flashSize || 0);
+            document.getElementById('diagResetReason').textContent = getResetReasonString(sys.resetReason || 0);
         }
     }
     
@@ -2391,7 +2616,7 @@ void WebInterface::getSystemStatus(JsonDocument& doc) {
     }
     
     // Add system information
-    doc["systemInfo"]["version"] = "4.1.12";
+    doc["systemInfo"]["version"] = "4.1.13";
     doc["systemInfo"]["hardware"] = "ESP32-S3-WROOM-1";
     doc["systemInfo"]["uptime"] = millis();
     doc["systemInfo"]["freeHeap"] = ESP.getFreeHeap();
@@ -2402,6 +2627,51 @@ void WebInterface::getSystemStatus(JsonDocument& doc) {
     if (broadcastTaskHandle != nullptr) {
         doc["systemInfo"]["taskStackHighWaterMark"] = uxTaskGetStackHighWaterMark(broadcastTaskHandle);
     }
+    
+    // Add detailed diagnostics data
+    JsonObject diag = doc.createNestedObject("diagnostics");
+    
+    // Memory diagnostics
+    JsonObject memory = diag.createNestedObject("memory");
+    memory["freeHeap"] = ESP.getFreeHeap();
+    memory["totalHeap"] = ESP.getHeapSize();
+    memory["minFreeHeap"] = ESP.getMinFreeHeap();
+    memory["maxAllocHeap"] = ESP.getMaxAllocHeap();
+    
+    // Task diagnostics - get stack high water marks
+    JsonObject tasks = diag.createNestedObject("tasks");
+    
+    // StepperController task - check if it's running based on system state
+    // We can't directly access the task handle, so use motion state as proxy
+    MotionState motionState;
+    SAFE_READ_STATUS(motionState, motionState);
+    tasks["stepperExists"] = (motionState != MotionState::IDLE || StepperController::isHomed());
+    // Stack info not available without access to task handle
+    
+    // DMXReceiver task - check if module is active
+    tasks["dmxExists"] = DMXReceiver::getState() != DMXState::NO_SIGNAL;
+    // Stack info not available without access to task handle
+    
+    // WebInterface tasks
+    if (webTaskHandle != nullptr) {
+        tasks["webStack"] = uxTaskGetStackHighWaterMark(webTaskHandle);
+        tasks["webExists"] = true;
+    } else {
+        tasks["webExists"] = false;
+    }
+    
+    if (broadcastTaskHandle != nullptr) {
+        tasks["broadcastStack"] = uxTaskGetStackHighWaterMark(broadcastTaskHandle);
+        tasks["broadcastExists"] = true;
+    } else {
+        tasks["broadcastExists"] = false;
+    }
+    
+    // System info
+    JsonObject sysInfo = diag.createNestedObject("system");
+    sysInfo["cpuFreq"] = ESP.getCpuFreqMHz();
+    sysInfo["flashSize"] = ESP.getFlashChipSize();
+    sysInfo["resetReason"] = esp_reset_reason();
 }
 
 void WebInterface::getSystemConfig(JsonDocument& doc) {
@@ -2427,7 +2697,7 @@ void WebInterface::getSystemConfig(JsonDocument& doc) {
 }
 
 void WebInterface::getSystemInfo(JsonDocument& doc) {
-    doc["version"] = "4.1.12";
+    doc["version"] = "4.1.13";
     doc["hardware"] = "ESP32-S3-WROOM-1";
     doc["uptime"] = millis();
     doc["freeHeap"] = ESP.getFreeHeap();
