@@ -1,8 +1,8 @@
 // ============================================================================
 // File: DMXReceiver.cpp
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
-// Version: 4.1.6
-// Date: 2025-02-02
+// Version: 4.1.10
+// Date: 2025-02-03
 // Author: Tim Rosener
 // Description: DMXReceiver module implementation - DMX512 signal reception
 // License: MIT
@@ -20,6 +20,11 @@
 // ============================================================================
 
 namespace DMXReceiver {
+  
+  // ----------------------------------------------------------------------------
+  // Debug control - set to false to disable debug output
+  // ----------------------------------------------------------------------------
+  static const bool DMX_DEBUG_ENABLED = true;  // Set to true only when debugging
   
   // ----------------------------------------------------------------------------
   // Private Module Variables
@@ -56,6 +61,7 @@ namespace DMXReceiver {
   static const uint8_t MODE_HYSTERESIS = 5;  // Prevent mode flickering
   static bool homingInProgress = false;  // Track if homing is active
   static bool homingTriggeredByDMX = false;  // Track if DMX initiated the homing
+  static uint32_t lastChannelUpdateTime = 0;  // Track when channels were last updated
   
   // DMX configuration
   static bool dmxEnabled = true;  // DMX control enabled by default
@@ -116,7 +122,17 @@ namespace DMXReceiver {
   // ----------------------------------------------------------------------------
   
   static void processDMXChannels() {
-    if (!dmxEnabled || !dmxConnected) {
+    if (!dmxEnabled) {
+      return;
+    }
+    
+    // Check connection status
+    if (!dmxConnected) {
+      static uint32_t lastDisconnectWarning = 0;
+      if (millis() - lastDisconnectWarning > 5000) {
+        lastDisconnectWarning = millis();
+        Serial.printf("[DMX] Warning: DMX not connected - waiting for signal (timeout=%lums)\n", signalTimeout);
+      }
       return;
     }
     
@@ -207,12 +223,35 @@ namespace DMXReceiver {
     
     // Process position control in CONTROL mode only if system is homed
     if (currentMode == DMXMode::CONTROL && !homingRequired) {
+      
       // Calculate position from DMX values
       float positionPercent;
       if (use16BitPosition) {
         // 16-bit mode: combine MSB and LSB
-        uint16_t pos16 = (static_cast<uint16_t>(channels[CH_POSITION_MSB]) << 8) | channels[CH_POSITION_LSB];
-        positionPercent = (pos16 / 65535.0f) * 100.0f;
+        // Check for stuck LSB (console wake-up issue)
+        static uint8_t lastLSB = 0;
+        static uint32_t lsbStuckCount = 0;
+        
+        if (channels[CH_POSITION_MSB] > 0 && channels[CH_POSITION_LSB] == 0 && lastLSB > 0) {
+          // LSB might be stuck at 0 after console wake
+          lsbStuckCount++;
+          if (lsbStuckCount > 3) {
+            Serial.println("[DMX] WARNING: Position LSB stuck at 0 - switching to 8-bit mode temporarily");
+            // Temporarily use 8-bit calculation
+            positionPercent = (channels[CH_POSITION_MSB] / 255.0f) * 100.0f;
+          } else {
+            // Use last known good LSB value
+            uint16_t pos16 = (static_cast<uint16_t>(channels[CH_POSITION_MSB]) << 8) | lastLSB;
+            positionPercent = (pos16 / 65535.0f) * 100.0f;
+          }
+        } else {
+          lsbStuckCount = 0;
+          if (channels[CH_POSITION_LSB] > 0) {
+            lastLSB = channels[CH_POSITION_LSB];
+          }
+          uint16_t pos16 = (static_cast<uint16_t>(channels[CH_POSITION_MSB]) << 8) | channels[CH_POSITION_LSB];
+          positionPercent = (pos16 / 65535.0f) * 100.0f;
+        }
       } else {
         // 8-bit mode: use MSB only
         positionPercent = (channels[CH_POSITION_MSB] / 255.0f) * 100.0f;
@@ -237,25 +276,112 @@ namespace DMXReceiver {
       bool speedChanged = (abs(channels[CH_SPEED] - lastSpeedValue) > 2);  // Small threshold to prevent jitter
       bool accelChanged = (abs(channels[CH_ACCELERATION] - lastAccelValue) > 2);
       
+      // Check if we've been idle for too long (position tracking timeout)
+      static uint32_t lastPositionUpdateTime = 0;
+      bool positionTimeout = (millis() - lastPositionUpdateTime > 30000);  // 30 second timeout
+      
+      // Always check the actual DMX position value against current position
+      // This ensures we detect changes even after idle periods
+      bool atTargetPosition = (abs(currentPos - targetPosition) < 3);  // Within 3 steps of target
+      
+      // Force update if position changed OR if we've been idle too long OR DMX position differs from actual
+      if (positionChanged || positionTimeout || !atTargetPosition) {
+        lastPositionUpdateTime = millis();
+        positionChanged = true;  // Force position update
+        
+        // Debug output when forcing update
+        if (positionTimeout) {
+          Serial.println("[DMX] Position timeout - forcing update");
+        }
+        if (!atTargetPosition && !positionChanged) {
+          Serial.printf("[DMX] Position mismatch - Current: %d, DMX Target: %d\n", currentPos, targetPosition);
+        }
+      }
+      
       // Only send speed/accel updates if we're moving or position is changing
       bool needsUpdate = positionChanged || (isMoving && (speedChanged || accelChanged));
       
+      // Get current configuration for max values (needed for calculations)
+      SystemConfig* config = SystemConfigMgr::getConfig();
+      if (!config) return;
+      
+      // Calculate actual speed and acceleration from DMX values
+      float actualSpeed, actualAccel;
+      
+      // Scale DMX values to actual speed (0 = minimum, 255 = maximum)
+      // Use a minimum speed of 10 steps/sec to prevent stalling
+      float speedPercent = (channels[CH_SPEED] / 255.0f) * 100.0f;
+      actualSpeed = 10.0f + ((config->defaultProfile.maxSpeed - 10.0f) * speedPercent) / 100.0f;
+      
+      // Scale DMX values to actual acceleration (0 = minimum, 255 = maximum)
+      // Use a minimum acceleration of 10 steps/sec² 
+      float accelPercent = (channels[CH_ACCELERATION] / 255.0f) * 100.0f;
+      actualAccel = 10.0f + ((config->defaultProfile.acceleration - 10.0f) * accelPercent) / 100.0f;
+      
+      // Debug output every 1 second showing all values
+      static uint32_t lastDebugPrintTime = 0;
+      static int32_t lastDebugPosition = -1;
+      static float lastDebugSpeed = -1;
+      static float lastDebugAccel = -1;
+      static uint8_t lastChannelValues[4] = {0};
+      static uint32_t lastTaskAliveTime = 0;
+      
+      if (DMX_DEBUG_ENABLED && millis() - lastDebugPrintTime >= 1000) {  // Every 1 second
+        lastDebugPrintTime = millis();
+        
+        // Check what changed since last print
+        bool posChanged = (lastDebugPosition != targetPosition);
+        bool spdChanged = (lastDebugSpeed != actualSpeed);
+        bool accChanged = (lastDebugAccel != actualAccel);
+        
+        // Check for anomalies
+        bool lsbStuckAtZero = (channels[CH_POSITION_MSB] > 0 && channels[CH_POSITION_LSB] == 0);
+        
+        // Always print current values
+        Serial.printf("[DMX] Pos: %d (%.1f%%) Spd: %.0f Acc: %.0f | Current: %d | Moving: %s",
+                      targetPosition, positionPercent, actualSpeed, actualAccel,
+                      currentPos, isMoving ? "YES" : "NO");
+        
+        // Add change indicators
+        if (posChanged || spdChanged || accChanged) {
+          Serial.print(" [Changed:");
+          if (posChanged) Serial.print(" POS");
+          if (spdChanged) Serial.print(" SPD");
+          if (accChanged) Serial.print(" ACC");
+          Serial.print("]");
+        }
+        
+        // Add DMX channel raw values for reference
+        Serial.printf(" | DMX[%d,%d,%d,%d,%d]", 
+                      channels[CH_POSITION_MSB], channels[CH_POSITION_LSB],
+                      channels[CH_SPEED], channels[CH_ACCELERATION],
+                      channels[CH_MODE]);
+        
+        // Warn about anomalies
+        if (lsbStuckAtZero) {
+          Serial.print(" [LSB STUCK!]");
+        }
+        
+        // Check for channels that changed from 0
+        for (int i = 0; i < 4; i++) {
+          if (lastChannelValues[i] == 0 && channels[i] > 0) {
+            Serial.printf(" [Ch%d WAKE]", i);
+          }
+          lastChannelValues[i] = channels[i];
+        }
+        
+        Serial.println();
+        
+        // Task alive status removed to clean up serial output
+        
+        // Update last values
+        lastDebugPosition = targetPosition;
+        lastDebugSpeed = actualSpeed;
+        lastDebugAccel = actualAccel;
+      }
+      
       // Send command if any parameter changed and update is needed
       if (needsUpdate) {
-        // Get current configuration for max values
-        SystemConfig* config = SystemConfigMgr::getConfig();
-        if (!config) return;
-        
-        // Calculate actual speed and acceleration from DMX values
-        float speedPercent = (channels[CH_SPEED] / 255.0f) * 100.0f;
-        float accelPercent = (channels[CH_ACCELERATION] / 255.0f) * 100.0f;
-        
-        float actualSpeed = (config->defaultProfile.maxSpeed * speedPercent) / 100.0f;
-        float actualAccel = (config->defaultProfile.acceleration * accelPercent) / 100.0f;
-        
-        // Ensure minimum values for safety
-        if (actualSpeed < 10.0f) actualSpeed = 10.0f;
-        if (actualAccel < 10.0f) actualAccel = 10.0f;
         
         // Create motion command
         MotionCommand cmd;
@@ -274,16 +400,7 @@ namespace DMXReceiver {
           lastSpeedValue = channels[CH_SPEED];
           lastAccelValue = channels[CH_ACCELERATION];
           
-          // Log changes
-          static uint32_t lastLogTime = 0;
-          if (millis() - lastLogTime > 1000 || speedChanged || accelChanged) {
-            lastLogTime = millis();
-            Serial.printf("[DMX] Motion: Pos=%d (%.1f%%), Spd=%.0f, Acc=%.0f", 
-              targetPosition, positionPercent, actualSpeed, actualAccel);
-            if (speedChanged) Serial.print(" [Speed Changed]");
-            if (accelChanged) Serial.print(" [Accel Changed]");
-            Serial.println();
-          }
+          // Command sent - no need for additional logging here as debug output handles it
         }
       }
     } else if (currentMode == DMXMode::CONTROL && homingRequired) {
@@ -293,6 +410,30 @@ namespace DMXReceiver {
         lastHomingWarning = millis();
         Serial.println("[DMX] Position control blocked - system requires homing");
         Serial.println("[DMX] Set mode channel to HOME range (170-255) to initiate homing");
+      }
+    } else if (currentMode != DMXMode::CONTROL) {
+      // Debug output for non-CONTROL modes
+      static uint32_t lastModeDebugTime = 0;
+      static uint32_t lastTaskAliveTime = 0;
+      
+      if (millis() - lastModeDebugTime >= 5000) {  // Every 5 seconds when not in control
+        lastModeDebugTime = millis();
+        Serial.printf("[DMX] Mode: %s | DMX Channels[%d,%d,%d,%d,%d] | Homing Required: %s\n",
+                      currentMode == DMXMode::STOP ? "STOP" : 
+                      (currentMode == DMXMode::HOME ? "HOME" : "UNKNOWN"),
+                      channels[0], channels[1], channels[2], channels[3], channels[4],
+                      homingRequired ? "YES" : "NO");
+        
+        // Task alive status removed to clean up serial output
+      }
+    }
+    
+    // Connection status tracking
+    static uint32_t lastConnectionDebugTime = 0;
+    if (millis() - lastConnectionDebugTime >= 10000) {  // Every 10 seconds
+      lastConnectionDebugTime = millis();
+      if (!dmxConnected) {
+        Serial.println("[DMX] WARNING: No DMX signal detected");
       }
     }
   }
@@ -310,16 +451,47 @@ namespace DMXReceiver {
       return;
     }
     
+    // Save previous values for comparison
+    static uint8_t previousCache[NUM_CHANNELS] = {0};
+    bool hadNonZeroValues = false;
+    for (int i = 0; i < NUM_CHANNELS; i++) {
+      if (previousCache[i] > 0) {
+        hadNonZeroValues = true;
+        break;
+      }
+    }
+    
     // Use the efficient readChannels method to read our 5 channels at once
     uint16_t channelsRead = dmx.readChannels(channelCache, baseChannel, NUM_CHANNELS);
     
     // Check if we got all channels
     if (channelsRead != NUM_CHANNELS) {
       // Partial read - might indicate a short DMX universe
+      Serial.printf("[DMX] Warning: Only read %d of %d channels\n", channelsRead, NUM_CHANNELS);
       for (uint16_t i = channelsRead; i < NUM_CHANNELS; i++) {
         channelCache[i] = 0;  // Clear unread channels
       }
     }
+    
+    // Check if all values went to zero
+    bool allZeros = true;
+    for (int i = 0; i < NUM_CHANNELS; i++) {
+      if (channelCache[i] != 0) {
+        allZeros = false;
+        break;
+      }
+    }
+    
+    // Debug if values suddenly went to all zeros
+    if (allZeros && hadNonZeroValues) {
+      Serial.println("[DMX] WARNING: All channel values suddenly went to 0!");
+      Serial.printf("[DMX] Previous values were: [%d,%d,%d,%d,%d]\n",
+                    previousCache[0], previousCache[1], previousCache[2], 
+                    previousCache[3], previousCache[4]);
+    }
+    
+    // Save current values for next comparison
+    memcpy(previousCache, channelCache, NUM_CHANNELS);
   }
   
   /**
@@ -329,7 +501,8 @@ namespace DMXReceiver {
     if (dmxConnected && (millis() - lastPacketTime > signalTimeout)) {
       dmxConnected = false;
       currentState = DMXState::TIMEOUT;
-      Serial.println("[DMX] Signal timeout");
+      Serial.printf("[DMX] Signal timeout - no packets for %lums (timeout=%lums)\n", 
+                    millis() - lastPacketTime, signalTimeout);
     }
   }
   
@@ -346,17 +519,6 @@ namespace DMXReceiver {
     while (true) {
       loopCount++;
       
-      // Debug output every 10 seconds
-      if (loopCount % 1000 == 0) {
-        if (homingInProgress) {
-          Serial.println("[DMX] Task alive - HOMING IN PROGRESS (DMX ignored)");
-        } else {
-          Serial.printf("[DMX] Task alive - Connected: %s, Mode: %s\n", 
-            dmx.isConnected() ? "YES" : "NO",
-            currentMode == DMXMode::STOP ? "STOP" : (currentMode == DMXMode::CONTROL ? "CONTROL" : "HOME"));
-        }
-      }
-      
       // Check if DMX is connected
       if (dmx.isConnected()) {
         // Check if we have new packets
@@ -372,6 +534,27 @@ namespace DMXReceiver {
           
           // Update our channel cache
           updateChannelCache();
+          lastChannelUpdateTime = millis();
+          
+          // Check for console sleep state (all channels 0)
+          static bool wasAsleep = false;
+          bool isAsleep = true;
+          for (int i = 0; i < NUM_CHANNELS; i++) {
+            if (channelCache[i] != 0) {
+              isAsleep = false;
+              break;
+            }
+          }
+          
+          if (isAsleep && !wasAsleep) {
+            Serial.println("[DMX] WARNING: Console appears to be in sleep mode (all channels 0)");
+            wasAsleep = true;
+          } else if (!isAsleep && wasAsleep) {
+            Serial.println("[DMX] Console woke up from sleep mode");
+            wasAsleep = false;
+            // Force a position update after wake
+            lastTargetPosition = -1;
+          }
           
           // Update system status
           SAFE_WRITE_STATUS(dmxState, DMXState::SIGNAL_PRESENT);
@@ -389,8 +572,12 @@ namespace DMXReceiver {
       // Check for timeout (redundant with library's isConnected, but allows custom timeout)
       checkSignalTimeout();
       
-      // Process DMX channels and generate motion commands
-      processDMXChannels();
+      // Always process DMX channels if we have a valid signal
+      // Use the cached values from the last valid packet
+      if (dmxConnected) {
+        // Don't update cache here - only use what was cached from valid packets
+        processDMXChannels();
+      }
       
       // Wait for next cycle
       vTaskDelayUntil(&xLastWakeTime, xFrequency);

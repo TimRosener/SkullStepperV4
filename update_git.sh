@@ -5,12 +5,12 @@
 # Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
 # Description: Git commit and push helper with version management
 # Author: Tim Rosener
-# Version: 2.0.0 - Enhanced with automatic version detection and updates
+# Version: 2.1.0 - Enhanced with automatic CHANGELOG updates
 # ============================================================================
 
 echo "============================================================================"
 echo "SkullStepperV4 Git Update Helper"
-echo "Version: 2.0.0 - With Automatic Version Management"
+echo "Version: 2.1.0 - With Automatic Version Management & CHANGELOG Updates"
 echo "============================================================================"
 echo ""
 
@@ -36,6 +36,15 @@ if [ -z "$CURRENT_VERSION" ]; then
 fi
 
 echo "Current version: $CURRENT_VERSION"
+echo ""
+
+# Show recent changes summary
+echo "Recent changes:"
+echo "---------------"
+echo "✓ Fixed DMX idle timeout issue - console sleep mode detection"
+echo "✓ Enhanced DMX debug output - 1-second updates with all values"
+echo "✓ Removed repetitive StepperController move debug messages"
+echo "✓ DMX now uses system defaults when speed/accel channels are 0"
 echo ""
 
 # Function to update version in a file
@@ -93,10 +102,12 @@ fi
 
 # Check if commit message provided
 if [ -z "$1" ]; then
-    echo "Usage: ./update_git.sh \"Your commit message\" [--tag]"
+    echo "Usage: ./update_git.sh \"Your commit message\" [options]"
     echo ""
     echo "Options:"
-    echo "  --tag    Create and push a git tag for this version"
+    echo "  --tag       Create and push a git tag for this version"
+    echo "  --minor     Bump minor version (e.g., 4.1.9 -> 4.2.0)"
+    echo "  --patch     Bump patch version (e.g., 4.1.9 -> 4.1.10)"
     echo ""
     echo "Commit message format:"
     echo "  Add: New feature or capability"
@@ -105,19 +116,73 @@ if [ -z "$1" ]; then
     echo "  Refactor: Code restructuring"
     echo "  Docs: Documentation updates"
     echo "  Test: Test additions or changes"
-    echo "  Version: Version bump to $CURRENT_VERSION"
     echo ""
-    echo "Example:"
-    echo "  ./update_git.sh \"Fix: Auto-home on E-stop implementation\""
-    echo "  ./update_git.sh \"Version: Bump to $CURRENT_VERSION\" --tag"
+    echo "Examples:"
+    echo "  ./update_git.sh \"Fix: DMX console sleep mode handling\""
+    echo "  ./update_git.sh \"Fix: DMX speed/accel zero value handling\" --patch"
+    echo "  ./update_git.sh \"Add: New DMX 16-bit position mode\" --minor --tag"
+    echo ""
+    echo "Recent fixes ready to commit:"
+    echo "  - DMX console sleep mode detection and handling"
+    echo "  - Use system defaults when DMX speed/accel channels are 0"
+    echo "  - Enhanced DMX debug output format"
+    echo "  - Removed repetitive move command debug messages"
     echo ""
     exit 1
 fi
 
-# Check for --tag option
+# Check for options
 CREATE_TAG=false
-if [ "$2" == "--tag" ]; then
-    CREATE_TAG=true
+BUMP_VERSION=""
+for arg in "${@:2}"; do
+    case $arg in
+        --tag)
+            CREATE_TAG=true
+            ;;
+        --minor)
+            BUMP_VERSION="minor"
+            ;;
+        --patch)
+            BUMP_VERSION="patch"
+            ;;
+    esac
+done
+
+# Bump version if requested
+if [ -n "$BUMP_VERSION" ]; then
+    # Parse current version
+    IFS='.' read -r major minor patch <<< "$CURRENT_VERSION"
+    
+    # Calculate new version
+    if [ "$BUMP_VERSION" = "minor" ]; then
+        NEW_VERSION="$major.$((minor + 1)).0"
+    elif [ "$BUMP_VERSION" = "patch" ]; then
+        NEW_VERSION="$major.$minor.$((patch + 1))"
+    fi
+    
+    echo "Bumping version from $CURRENT_VERSION to $NEW_VERSION"
+    echo ""
+    
+    # Update CHANGELOG.md
+    TODAY=$(date +%Y-%m-%d)
+    
+    # Create new version entry in CHANGELOG
+    sed -i.bak "s/## \[$CURRENT_VERSION\]/## [$NEW_VERSION] - $TODAY\n\n### Fixed\n- $1\n\n## [$CURRENT_VERSION]/" CHANGELOG.md && rm CHANGELOG.md.bak
+    
+    CURRENT_VERSION=$NEW_VERSION
+    echo "✓ Updated CHANGELOG.md with version $NEW_VERSION"
+    echo ""
+    
+    # Update version in all files
+    for entry in "${FILES_TO_CHECK[@]}"; do
+        IFS='|' read -r file search_pattern replacement_pattern <<< "$entry"
+        # Update replacement pattern with new version
+        replacement_pattern=$(echo "$replacement_pattern" | sed "s/$CURRENT_VERSION/$NEW_VERSION/g")
+        if [ -f "$file" ]; then
+            update_version_in_file "$file" "s/$search_pattern/$replacement_pattern/g"
+        fi
+    done
+    echo ""
 fi
 
 # Run pre-flight check if available

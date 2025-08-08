@@ -1,11 +1,11 @@
 // ============================================================================
 // File: StepperController.cpp
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
-// Version: 4.1.3
+// Version: 4.1.7
 // Date: 2025-02-02
 // Author: Tim Rosener
 // Description: Thread-safe stepper motor control implementation with ODStepper
-//              Fixed: Now applies speed/acceleration from DMX motion commands
+//              Fixed: Homing speed now consistently uses homingSpeed config parameter
 // License: MIT
 //
 // CRITICAL: This module runs on Core 0 for real-time performance
@@ -379,7 +379,7 @@ static void updateHomingSequence() {
                     int32_t homePosition = g_minPosition + (int32_t)((range * homePercent) / 100.0f);
                     
                     // Move to configured home position
-                    g_stepper->setSpeedInHz(g_currentProfile.maxSpeed);
+                    g_stepper->setSpeedInHz(g_homingSpeed);  // Use homing speed, not max speed
                     g_stepper->moveTo(homePosition);
                     g_homingState = HomingState::MOVING_TO_CENTER;
                     
@@ -392,7 +392,7 @@ static void updateHomingSequence() {
                 } else {
                     // No config, just use center position
                     int32_t homePosition = (g_minPosition + g_maxPosition) / 2;
-                    g_stepper->setSpeedInHz(g_currentProfile.maxSpeed);
+                    g_stepper->setSpeedInHz(g_homingSpeed);  // Use homing speed, not max speed
                     g_stepper->moveTo(homePosition);
                     g_homingState = HomingState::MOVING_TO_CENTER;
                     
@@ -869,7 +869,7 @@ bool processMotionCommand(const MotionCommand& cmd) {
                 g_stepper->moveTo(cmd.profile.targetPosition);
             }
             success = true;
-            Serial.printf("StepperController: Move to %d\n", cmd.profile.targetPosition);
+            // Removed debug output for move commands as requested
             break;
             
         case CommandType::MOVE_RELATIVE:

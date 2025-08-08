@@ -1,7 +1,7 @@
 # SkullStepperV4 Project Prompt
 ## Complete Project Context for AI Assistants
-### Version 4.1.6 - Production Ready with DMX Development
-### Last Updated: 2025-02-02
+### Version 4.1.10 - Production Ready with DMX Development
+### Last Updated: 2025-02-03
 
 ## Project Overview
 
@@ -133,7 +133,27 @@ You are working on SkullStepperV4, a production-ready ESP32-S3 based stepper mot
 - Mode switching capability
 - Signal monitoring
 
-## Recent Changes (2025-02-02)
+## Recent Changes (2025-02-03)
+
+### v4.1.10 Bug Fixes
+1. **Fixed DMX Channel Cache Corruption**:
+   - DMX values no longer randomly drop to zero
+   - Channel cache only updates when receiving valid new packets
+   - Added detection for sudden zero value transitions
+   
+2. **Improved DMX Zero Value Handling**:
+   - Speed/acceleration at 0 now use system defaults
+   - Prevents slow motion (10 steps/sec) with zero values
+   - Maintains smooth operation with problematic DMX sources
+   
+3. **Enhanced Debug Output**:
+   - Shows all 5 DMX channels for complete visibility
+   - Detects stuck LSB in 16-bit position mode
+   - Tracks channel wake-up from zero state
+   - Consolidated task alive messages
+   - Removed repetitive "Move to" debug messages
+
+### Previous v4.1.x Updates (2025-02-02)
 
 1. **DMX Phase 1 Complete**: Core infrastructure with ESP32S3DMX
 2. **Improved DMX Channel Layout**: Position LSB moved to channel 1

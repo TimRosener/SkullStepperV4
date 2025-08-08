@@ -94,6 +94,8 @@ struct DMXConfig {
 - [x] Apply speed limits dynamically
 - [x] Handle mode transitions smoothly
 - [x] Implement hold-on-signal-loss behavior
+- [x] Fixed channel cache corruption issues
+- [x] Handle DMX zero values gracefully
 
 **Motion Command Flow:**
 ```
@@ -340,3 +342,51 @@ bool needsUpdate = positionChanged || (isMoving && (speedChanged || accelChanged
 ```
 
 This allows real-time performance adjustments during shows without stopping motion.
+
+## Recent Bug Fixes (v4.1.10)
+
+### DMX Channel Cache Corruption Fix
+
+Fixed issue where DMX values would randomly drop to zero:
+
+1. **Root Cause**: Channel cache was being updated even when no new DMX packets arrived
+2. **Solution**: Only update cache when receiving valid new packets
+3. **Detection**: Added warnings when all channels suddenly go to zero
+
+```cpp
+// OLD: Updated cache every cycle
+if (dmxConnected) {
+    updateChannelCache();  // Could read stale/corrupted data
+    processDMXChannels();
+}
+
+// NEW: Only use cached values from valid packets
+if (dmxConnected) {
+    processDMXChannels();  // Uses last valid cache
+}
+```
+
+### DMX Zero Value Handling
+
+Improved handling when DMX channels send zero values:
+
+1. **Problem**: Zero speed/accel values resulted in minimum 10 steps/sec movement
+2. **Solution**: Use system default values when channels are zero
+3. **Benefit**: Maintains smooth operation even with problematic DMX sources
+
+```cpp
+// When speed channel is 0, use system default
+if (channels[CH_SPEED] == 0) {
+    actualSpeed = config->defaultProfile.maxSpeed;
+} else {
+    actualSpeed = (config->defaultProfile.maxSpeed * speedPercent) / 100.0f;
+}
+```
+
+### Enhanced Debug Output
+
+- Shows all 5 DMX channels including mode
+- Detects stuck LSB in 16-bit mode
+- Tracks channel wake-up from zero
+- Consolidated task alive messages
+- Cleaner message flow

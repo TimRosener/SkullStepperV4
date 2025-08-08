@@ -1,7 +1,7 @@
 # SkullStepperV4 - ESP32-S3 Closed-Loop Stepper Control System
 
-**Version**: 4.1.6  
-**Date**: 2025-02-02  
+**Version**: 4.1.10  
+**Date**: 2025-02-07  
 **Status**: Production-Ready with DMX Development in Progress
 
 ## System Architecture Overview
@@ -1066,7 +1066,7 @@ attachInterrupt(digitalPinToInterrupt(RIGHT_LIMIT_PIN), rightLimitISR, FALLING);
 
 Use `PARAMS` command for full parameter details with ranges and defaults.
 
-## Current Status Summary (v4.1.6 - 2025-02-02)
+## Current Status Summary (v4.1.10 - 2025-02-07)
 
 ### 🏆 Production-Ready System
 
@@ -1109,15 +1109,17 @@ Use `PARAMS` command for full parameter details with ranges and defaults.
    - Position limits enforcement
    - Homing required before movement
 
-### 🚀 Latest Enhancements (2025-02-02)
+### 🚀 Latest Enhancements (2025-02-07)
 
-- **DMX Development Started**: Phase 1 complete with ESP32S3DMX integration
-- **Improved DMX Channel Layout**: Position MSB/LSB now adjacent (channels 0-1)
+- **Fixed DMX Zero Value Behavior**: DMX speed/acceleration channels now properly scale from minimum to maximum (0=slow, 255=fast) instead of jumping to defaults
+- **Improved Serial Output**: Removed "Task alive" messages that were corrupting output
+- **Better DMX Debugging**: Added DMX_DEBUG_ENABLED flag for cleaner operation when not debugging
+- **Channel Monitoring**: Added detection for stuck LSB and channel wake events
+- **Fixed DMX Idle Timeout Bug**: DMX control no longer becomes unresponsive after periods of inactivity. Added 30-second position tracking timeout to ensure updates resume properly (v4.1.8)
+- **Fixed Homing Speed Override**: Homing sequence now consistently uses the configured `homingSpeed` parameter throughout the entire sequence, including the final move to home position (v4.1.7)
+- **DMX Development Progress**: Phase 1-4 complete with position, speed, and acceleration control
+- **Improved DMX Channel Layout**: Position MSB/LSB adjacent (channels 0-1)
 - **Core 0 DMX Task**: Real-time processing without affecting motion control
-- **Fixed DMX Speed/Acceleration Control**: StepperController now properly applies speed and acceleration values from DMX channels when executing motion commands (v4.1.3)
-- **Improved Web Interface**: Consolidated homing warnings, reorganized configuration tabs for better user experience (v4.1.4)
-- **Fixed Checkbox Visibility**: Auto-Home options now always visible in dedicated "Homing Options" section (v4.1.5)
-- **Improved DMX Safety**: DMX position control disabled when homing required, but HOME command still works (v4.1.6)
 
 - **WebInterface as Core Component**: Full web control with real-time updates
 - **Test Functions in Web UI**: TEST and TEST2 buttons for validation
@@ -1138,5 +1140,23 @@ Use `PARAMS` command for full parameter details with ranges and defaults.
   - Automatically clears limit fault before attempting to home
   - Uses correct processMotionCommand() instead of direct function calls
   - Added debug output to track auto-home state during 2-second delay
+
+### 🔧 Bug Fixes (v4.1.10)
+
+- **Fixed DMX Channel Cache Corruption**: 
+  - DMX values no longer randomly drop to zero during operation
+  - Channel cache only updates when receiving valid new DMX packets
+  - Added detection and warnings for sudden zero value transitions
+
+- **Improved DMX Zero Value Handling**:
+  - Speed/acceleration channels at 0 now use system defaults
+  - Prevents slow motion (10 steps/sec) when DMX console sends zero values
+  - Maintains smooth operation even with problematic DMX sources
+
+- **Enhanced Debug Output**:
+  - Shows all 5 DMX channels for complete visibility
+  - Detects stuck LSB in 16-bit position mode
+  - Tracks channel wake-up from zero state
+  - Cleaner message flow with integrated task status
 
 The SkullStepperV4 system is now a complete, production-ready stepper control solution suitable for professional installations requiring reliable, safe, and user-friendly operation.

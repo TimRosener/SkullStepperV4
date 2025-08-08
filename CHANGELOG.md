@@ -5,6 +5,74 @@ All notable changes to the SkullStepperV4 project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.10] - 2025-02-07
+
+### Fixed
+- DMX zero value behavior - channels now properly scale from minimum to maximum instead of using defaults
+- Serial output corruption by removing "Task alive" messages
+- DMX speed/acceleration control now works correctly (0=slow, 255=fast)
+
+### Added
+- DMX_DEBUG_ENABLED flag to control debug output
+- Better channel state monitoring (stuck LSB detection, channel wake events)
+
+### Changed
+- DMX speed/acceleration scaling now uses proportional control
+- Debug output can be easily enabled/disabled for cleaner operation
+
+## [4.1.10] - 2025-02-03
+
+### Fixed
+- DMX channel cache corruption when no new packets arrive
+- System now only updates channel cache when receiving valid new DMX packets
+- DMX speed/acceleration channels use system defaults when value is 0
+- Removed repetitive "Move to" debug messages from StepperController
+
+### Added
+- Enhanced DMX debug output showing all 5 channels including mode
+- Detection for DMX channel values suddenly dropping to zero
+- Warning messages when using default speed/acceleration values
+- Consolidated "Task alive" messages with regular debug output
+- Channel wake detection showing which channels recover from 0
+- LSB stuck detection for 16-bit position mode issues
+
+### Changed
+- DMX debug output now shows values every 1 second regardless of movement
+- Improved debug message formatting for easier reading
+- Task alive messages integrated into position update stream
+
+## [4.1.9] - 2025-02-03
+
+### Fixed
+- Improved DMX idle handling - now always updates channel cache when connected
+- Added position mismatch detection to force updates when DMX target differs from actual position
+- Enhanced debug output to show channel values in periodic status messages
+
+### Added
+- Position comparison check between current position and DMX target
+- Debug messages for position timeout and mismatch scenarios
+- Channel value display in periodic debug output
+
+## [4.1.8] - 2025-02-03
+
+### Fixed
+- DMX control becoming unresponsive after idle periods
+- Added position tracking timeout to force updates after 30 seconds of inactivity
+- Improved DMX connection monitoring with better debug output
+- DMX channels are now always processed when connected, even without new packets
+- Added periodic debug logging in CONTROL mode to diagnose issues
+
+### Changed
+- DMX task now shows time since last channel update in debug output
+- More robust handling of DMX signal presence detection
+
+## [4.1.7] - 2025-02-02
+
+### Fixed
+- Homing sequence now consistently uses the configured `homingSpeed` parameter throughout
+- Previously, the final movement to home position would incorrectly use `maxSpeed`
+- This ensures predictable and safe homing behavior at the user-configured speed
+
 ## [4.1.6] - 2025-02-02
 
 ### Changed
