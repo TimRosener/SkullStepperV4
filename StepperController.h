@@ -226,6 +226,18 @@ namespace StepperController {
      */
     bool isLimitFaultActive();
     
+    /**
+     * Check if the task is healthy (responding within timeout)
+     * @return true if task has updated within last 5 seconds
+     */
+    bool isTaskHealthy();
+    
+    /**
+     * Get the last task update timestamp
+     * @return milliseconds since last task update
+     */
+    uint32_t getLastTaskUpdateTime();
+    
 } // namespace StepperController
 
 #endif // STEPPERCONTROLLER_H

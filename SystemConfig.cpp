@@ -51,6 +51,7 @@ namespace SystemConfigMgr {
     g_systemConfig.minPosition = MIN_POSITION_STEPS;
     g_systemConfig.maxPosition = MAX_POSITION_STEPS;
     g_systemConfig.homingSpeed = 940.0f;  // Default homing speed (steps/sec)
+    g_systemConfig.limitSafetyMargin = 400.0f;  // Default 400 steps from limit switches
     g_systemConfig.autoHomeOnBoot = false;  // Default: manual homing required
     g_systemConfig.autoHomeOnEstop = false;  // Default: manual homing after E-stop
     
@@ -104,6 +105,7 @@ namespace SystemConfigMgr {
     g_systemConfig.minPosition = g_preferences.getInt("minPos", MIN_POSITION_STEPS);
     g_systemConfig.maxPosition = g_preferences.getInt("maxPos", MAX_POSITION_STEPS);
     g_systemConfig.homingSpeed = g_preferences.getFloat("homingSpeed", 940.0f);
+    g_systemConfig.limitSafetyMargin = g_preferences.getFloat("limitMargin", 400.0f);
     g_systemConfig.autoHomeOnBoot = g_preferences.getBool("autoHomeOnBoot", false);
     g_systemConfig.autoHomeOnEstop = g_preferences.getBool("autoHomeOnEstop", false);
     
@@ -188,6 +190,7 @@ namespace SystemConfigMgr {
     g_preferences.putInt("minPos", g_systemConfig.minPosition);
     g_preferences.putInt("maxPos", g_systemConfig.maxPosition);
     g_preferences.putFloat("homingSpeed", g_systemConfig.homingSpeed);
+    g_preferences.putFloat("limitMargin", g_systemConfig.limitSafetyMargin);
     g_preferences.putBool("autoHomeOnBoot", g_systemConfig.autoHomeOnBoot);
     g_preferences.putBool("autoHomeOnEstop", g_systemConfig.autoHomeOnEstop);
     

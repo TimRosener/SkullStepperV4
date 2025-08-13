@@ -246,6 +246,48 @@ This architecture ensures scalability while maintaining thread safety and module
 
 This is a comprehensive modular stepper motor control system with DMX input and extensive configurability, designed for the ESP32-S3 microcontroller with **CL57Y closed-loop stepper driver**.
 
+## Build and Compilation
+
+### Hardware Requirements
+- **Board**: ESP32-S3-DevKitC-1 or compatible ESP32-S3 development board
+- **Memory**: 8MB Flash recommended
+- **Connection**: USB-C for programming and serial communication
+
+### Arduino CLI Compilation
+
+#### Prerequisites
+1. Install Arduino CLI: `brew install arduino-cli` (macOS) or download from [arduino.cc](https://arduino.github.io/arduino-cli/)
+2. Install ESP32 board support:
+```bash
+arduino-cli core install esp32:esp32
+```
+
+#### Compile Command
+```bash
+arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc,PartitionScheme=default_8MB,CPUFreq=240,FlashMode=qio,FlashSize=8M,UploadSpeed=921600,DebugLevel=none,PSRAM=opi,LoopCore=1,EventsCore=1,USBMode=hwcdc /path/to/SkullStepperV4 --warnings all
+```
+
+#### Upload Command (when board is connected)
+```bash
+arduino-cli upload -p /dev/cu.usbmodem* --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc,PartitionScheme=default_8MB,CPUFreq=240,FlashMode=qio,FlashSize=8M,UploadSpeed=921600,DebugLevel=none,PSRAM=opi,LoopCore=1,EventsCore=1,USBMode=hwcdc /path/to/SkullStepperV4
+```
+
+#### Board Configuration Parameters
+- **FQBN**: `esp32:esp32:esp32s3` (Vendor:Architecture:Board)
+- **CDC on Boot**: Enabled (for USB serial communication)
+- **Partition Scheme**: Default 8MB
+- **CPU Frequency**: 240MHz
+- **Flash Mode**: QIO (Quad I/O)
+- **Flash Size**: 8MB
+- **Upload Speed**: 921600 baud
+- **PSRAM**: OPI (Octal SPI)
+- **USB Mode**: Hardware CDC
+
+#### Memory Usage (v4.1.13)
+- **Program Storage**: ~1.2MB (34% of 3.3MB available)
+- **Global Variables**: ~49KB (15% of 320KB available)
+- **Free Heap**: ~278KB available for runtime
+
 ## Development Status
 
 **Current Phase: Production-Ready System with Full Web Interface Integration**

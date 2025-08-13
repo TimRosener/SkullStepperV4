@@ -14,6 +14,8 @@
 
 #include "GlobalInterface.h"
 #include "HardwareConfig.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 // ============================================================================
 // DMXReceiver Module - Core 0 Real-Time DMX Reception
@@ -33,9 +35,9 @@ namespace DMXReceiver {
   const uint8_t CH_MODE = 4;          // Mode control
   
   // Mode thresholds
-  const uint8_t MODE_STOP_MAX = 84;       // 0-84: STOP mode
-  const uint8_t MODE_CONTROL_MAX = 170;   // 85-170: DMX CONTROL mode
-  // 171-255: FORCE HOME mode
+  const uint8_t MODE_STOP_MAX = 100;      // 1-100: STOP mode
+  const uint8_t MODE_CONTROL_MAX = 254;   // 101-254: DMX CONTROL mode
+  // 255: FORCE HOME mode
   
   // ----------------------------------------------------------------------------
   // Module Enums
@@ -223,6 +225,28 @@ namespace DMXReceiver {
    * @return Current mode (STOP, CONTROL, HOME)
    */
   DMXMode getCurrentMode();
+  
+  // ----------------------------------------------------------------------------
+  // Task Health Monitoring Functions
+  // ----------------------------------------------------------------------------
+  
+  /**
+   * Check if the DMX task is healthy (responding within timeout)
+   * @return true if task has updated within last 5 seconds
+   */
+  bool isTaskHealthy();
+  
+  /**
+   * Get the last task update timestamp
+   * @return milliseconds timestamp of last task update
+   */
+  uint32_t getLastTaskUpdateTime();
+  
+  /**
+   * Get the DMX task handle for monitoring
+   * @return TaskHandle_t or nullptr if not initialized
+   */
+  TaskHandle_t getTaskHandle();
 }
 
 #endif // DMXRECEIVER_H

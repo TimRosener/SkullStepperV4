@@ -14,6 +14,8 @@
 #include "SystemConfig.h"
 #include <ESP32S3DMX.h>
 #include <Arduino.h>
+#include <esp_task_wdt.h>  // For watchdog timer
+#include <driver/gpio.h>    // For GPIO pull resistor configuration
 
 // ============================================================================
 // DMXReceiver Module - Phase 6 Implementation with ESP32S3DMX
@@ -55,6 +57,18 @@ namespace DMXReceiver {
   // Task handle for Core 0 execution
   static TaskHandle_t dmxTaskHandle = NULL;
   
+  // Task health monitoring
+  static uint32_t g_lastTaskUpdate = 0;
+  static const uint32_t TASK_HEALTH_TIMEOUT_MS = 5000;  // Task is unhealthy if no update for 5 seconds
+  
+  // Mutex for channel cache protection
+  static SemaphoreHandle_t channelCacheMutex = NULL;
+  
+  // Data validation
+  static uint8_t consecutiveHomeReads = 0;  // Count consecutive 255 values on mode channel
+  static const uint8_t HOME_TRIGGER_COUNT = 3;  // Require 3 consecutive reads of 255 to trigger homing
+  static uint8_t lastValidChannels[NUM_CHANNELS] = {0};  // Last known good values
+  
   // DMX control state
   static DMXMode currentMode = DMXMode::STOP;
   static DMXMode lastMode = DMXMode::STOP;
@@ -79,12 +93,13 @@ namespace DMXReceiver {
     DMXMode detectedMode;
     
     // Determine raw mode from value
+    // 1-100: STOP, 101-254: CONTROL, 255: HOME
     if (modeValue <= MODE_STOP_MAX) {
       detectedMode = DMXMode::STOP;
     } else if (modeValue <= MODE_CONTROL_MAX) {
       detectedMode = DMXMode::CONTROL;
     } else {
-      detectedMode = DMXMode::HOME;
+      detectedMode = DMXMode::HOME;  // Only at 255
     }
     
     // Apply hysteresis if mode is different from current
@@ -92,24 +107,23 @@ namespace DMXReceiver {
       // Check if we're far enough from the boundary
       switch (currentMode) {
         case DMXMode::STOP:
+          // Need to get above 100+hysteresis to switch to CONTROL
           if (detectedMode == DMXMode::CONTROL && modeValue < (MODE_STOP_MAX + MODE_HYSTERESIS)) {
             return currentMode;  // Stay in STOP mode
           }
           break;
           
         case DMXMode::CONTROL:
+          // Need to drop below 100-hysteresis to switch to STOP
           if (detectedMode == DMXMode::STOP && modeValue > (MODE_STOP_MAX - MODE_HYSTERESIS)) {
             return currentMode;  // Stay in CONTROL mode
           }
-          if (detectedMode == DMXMode::HOME && modeValue < (MODE_CONTROL_MAX + MODE_HYSTERESIS)) {
-            return currentMode;  // Stay in CONTROL mode
-          }
+          // HOME is only at 255, no hysteresis needed
           break;
           
         case DMXMode::HOME:
-          if (detectedMode == DMXMode::CONTROL && modeValue > (MODE_CONTROL_MAX - MODE_HYSTERESIS)) {
-            return currentMode;  // Stay in HOME mode
-          }
+          // Once in HOME mode, need to drop below 255 to exit
+          // No hysteresis since HOME is only at exactly 255
           break;
       }
     }
@@ -159,9 +173,15 @@ namespace DMXReceiver {
       return;  // Don't process any DMX channels during homing
     }
     
-    // Get current channel values (already cached by updateChannelCache)
-    uint8_t channels[5];
-    memcpy(channels, channelCache, NUM_CHANNELS);
+    // Get current channel values with mutex protection
+    uint8_t channels[5] = {0};
+    if (xSemaphoreTake(channelCacheMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+      memcpy(channels, channelCache, NUM_CHANNELS);
+      xSemaphoreGive(channelCacheMutex);
+    } else {
+      // Failed to get mutex, use last known values
+      return;
+    }
     
     // Detect mode with hysteresis
     DMXMode newMode = detectModeWithHysteresis(channels[CH_MODE]);
@@ -228,16 +248,15 @@ namespace DMXReceiver {
       float positionPercent;
       if (use16BitPosition) {
         // 16-bit mode: combine MSB and LSB
-        // Check for stuck LSB (console wake-up issue)
+        // Check for stuck LSB (DMX signal issue)
         static uint8_t lastLSB = 0;
         static uint32_t lsbStuckCount = 0;
         
         if (channels[CH_POSITION_MSB] > 0 && channels[CH_POSITION_LSB] == 0 && lastLSB > 0) {
-          // LSB might be stuck at 0 after console wake
+          // LSB might be stuck at 0
           lsbStuckCount++;
           if (lsbStuckCount > 3) {
-            Serial.println("[DMX] WARNING: Position LSB stuck at 0 - switching to 8-bit mode temporarily");
-            // Temporarily use 8-bit calculation
+            // Silently switch to 8-bit mode temporarily
             positionPercent = (channels[CH_POSITION_MSB] / 255.0f) * 100.0f;
           } else {
             // Use last known good LSB value
@@ -323,7 +342,6 @@ namespace DMXReceiver {
       static int32_t lastDebugPosition = -1;
       static float lastDebugSpeed = -1;
       static float lastDebugAccel = -1;
-      static uint8_t lastChannelValues[4] = {0};
       static uint32_t lastTaskAliveTime = 0;
       
       if (DMX_DEBUG_ENABLED && millis() - lastDebugPrintTime >= 1000) {  // Every 1 second
@@ -360,14 +378,6 @@ namespace DMXReceiver {
         // Warn about anomalies
         if (lsbStuckAtZero) {
           Serial.print(" [LSB STUCK!]");
-        }
-        
-        // Check for channels that changed from 0
-        for (int i = 0; i < 4; i++) {
-          if (lastChannelValues[i] == 0 && channels[i] > 0) {
-            Serial.printf(" [Ch%d WAKE]", i);
-          }
-          lastChannelValues[i] = channels[i];
         }
         
         Serial.println();
@@ -409,7 +419,7 @@ namespace DMXReceiver {
       if (millis() - lastHomingWarning > 5000) {
         lastHomingWarning = millis();
         Serial.println("[DMX] Position control blocked - system requires homing");
-        Serial.println("[DMX] Set mode channel to HOME range (170-255) to initiate homing");
+        Serial.println("[DMX] Set mode channel to 255 to initiate homing");
       }
     } else if (currentMode != DMXMode::CONTROL) {
       // Debug output for non-CONTROL modes
@@ -461,16 +471,87 @@ namespace DMXReceiver {
       }
     }
     
+    // Create temporary buffer for reading
+    uint8_t tempBuffer[NUM_CHANNELS];
+    
     // Use the efficient readChannels method to read our 5 channels at once
-    uint16_t channelsRead = dmx.readChannels(channelCache, baseChannel, NUM_CHANNELS);
+    uint16_t channelsRead = dmx.readChannels(tempBuffer, baseChannel, NUM_CHANNELS);
     
     // Check if we got all channels
     if (channelsRead != NUM_CHANNELS) {
       // Partial read - might indicate a short DMX universe
       Serial.printf("[DMX] Warning: Only read %d of %d channels\n", channelsRead, NUM_CHANNELS);
       for (uint16_t i = channelsRead; i < NUM_CHANNELS; i++) {
-        channelCache[i] = 0;  // Clear unread channels
+        tempBuffer[i] = 0;  // Clear unread channels
       }
+    }
+    
+    // Validate data before updating cache
+    bool dataValid = true;
+    
+    // Check for suspicious patterns (all 255s, all 0s except one channel)
+    int zeroCount = 0;
+    int ffCount = 0;
+    for (int i = 0; i < NUM_CHANNELS; i++) {
+      if (tempBuffer[i] == 0) zeroCount++;
+      if (tempBuffer[i] == 255) ffCount++;
+    }
+    
+    // Suspicious if all channels are 255, or 4 channels are 0 and one is 255
+    if (ffCount == NUM_CHANNELS || (zeroCount == NUM_CHANNELS - 1 && ffCount == 1)) {
+      dataValid = false;
+      Serial.printf("[DMX] Suspicious data pattern detected: zeros=%d, 255s=%d\n", zeroCount, ffCount);
+    }
+    
+    // Special validation for mode channel (255 = homing)
+    if (tempBuffer[CH_MODE] == 255) {
+      // Check if this is a sudden spike
+      if (previousCache[CH_MODE] < 250) {
+        consecutiveHomeReads++;
+        if (consecutiveHomeReads < HOME_TRIGGER_COUNT) {
+          // Not enough consecutive reads, use previous value
+          tempBuffer[CH_MODE] = previousCache[CH_MODE];
+          Serial.printf("[DMX] Mode=255 detected, count=%d/%d, filtering...\n", 
+                       consecutiveHomeReads, HOME_TRIGGER_COUNT);
+        } else {
+          Serial.println("[DMX] Mode=255 confirmed after multiple reads, allowing HOME trigger");
+        }
+      }
+    } else {
+      consecutiveHomeReads = 0;  // Reset counter
+    }
+    
+    // Update cache with mutex protection
+    if (xSemaphoreTake(channelCacheMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+      if (dataValid) {
+        // Check for significant changes before updating
+        bool significantChange = false;
+        for (int i = 0; i < NUM_CHANNELS; i++) {
+          int diff = abs(tempBuffer[i] - channelCache[i]);
+          if (diff > 5 && i != CH_MODE) {  // Allow small changes, except mode
+            significantChange = true;
+          }
+          if (i == CH_MODE && tempBuffer[i] != channelCache[i]) {
+            // Mode change is always significant
+            significantChange = true;
+            Serial.printf("[DMX] Mode channel changing: %d -> %d\n", channelCache[i], tempBuffer[i]);
+          }
+        }
+        
+        if (significantChange) {
+          Serial.printf("[DMX] Channel update: [%d,%d,%d,%d,%d] -> [%d,%d,%d,%d,%d]\n",
+                       channelCache[0], channelCache[1], channelCache[2], channelCache[3], channelCache[4],
+                       tempBuffer[0], tempBuffer[1], tempBuffer[2], tempBuffer[3], tempBuffer[4]);
+        }
+        
+        memcpy(channelCache, tempBuffer, NUM_CHANNELS);
+        memcpy(lastValidChannels, tempBuffer, NUM_CHANNELS);
+      } else {
+        // Use last known good values
+        Serial.println("[DMX] Invalid data detected, using last known good values");
+        memcpy(channelCache, lastValidChannels, NUM_CHANNELS);
+      }
+      xSemaphoreGive(channelCacheMutex);
     }
     
     // Check if all values went to zero
@@ -491,7 +572,7 @@ namespace DMXReceiver {
     }
     
     // Save current values for next comparison
-    memcpy(previousCache, channelCache, NUM_CHANNELS);
+    memcpy(previousCache, tempBuffer, NUM_CHANNELS);  // Use tempBuffer, not channelCache
   }
   
   /**
@@ -513,10 +594,17 @@ namespace DMXReceiver {
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(10);  // 10ms update rate
     
+    // Add this task to watchdog
+    esp_task_wdt_add(NULL);
+    
     Serial.println("[DMX] Task started on Core 0");
+    Serial.println("[DMX] Watchdog timer active (10s timeout)");
     uint32_t loopCount = 0;
+    uint32_t lastWdtFeed = 0;
     
     while (true) {
+      // Update task health timestamp
+      g_lastTaskUpdate = millis();
       loopCount++;
       
       // Check if DMX is connected
@@ -536,25 +624,21 @@ namespace DMXReceiver {
           updateChannelCache();
           lastChannelUpdateTime = millis();
           
-          // Check for console sleep state (all channels 0)
-          static bool wasAsleep = false;
-          bool isAsleep = true;
+          // Check if all channels went to 0 (force position update when values return)
+          static bool allChannelsWereZero = false;
+          bool allChannelsZero = true;
           for (int i = 0; i < NUM_CHANNELS; i++) {
             if (channelCache[i] != 0) {
-              isAsleep = false;
+              allChannelsZero = false;
               break;
             }
           }
           
-          if (isAsleep && !wasAsleep) {
-            Serial.println("[DMX] WARNING: Console appears to be in sleep mode (all channels 0)");
-            wasAsleep = true;
-          } else if (!isAsleep && wasAsleep) {
-            Serial.println("[DMX] Console woke up from sleep mode");
-            wasAsleep = false;
-            // Force a position update after wake
-            lastTargetPosition = -1;
+          // Force position update when channels return from all-zero state
+          if (!allChannelsZero && allChannelsWereZero) {
+            lastTargetPosition = -1;  // Force position sync
           }
+          allChannelsWereZero = allChannelsZero;
           
           // Update system status
           SAFE_WRITE_STATUS(dmxState, DMXState::SIGNAL_PRESENT);
@@ -579,6 +663,12 @@ namespace DMXReceiver {
         processDMXChannels();
       }
       
+      // Feed watchdog timer periodically (every second)
+      if (millis() - lastWdtFeed > 1000) {
+        esp_task_wdt_reset();
+        lastWdtFeed = millis();
+      }
+      
       // Wait for next cycle
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -595,18 +685,31 @@ namespace DMXReceiver {
     
     Serial.println("[DMX] Initializing DMXReceiver with ESP32S3DMX...");
     
+    // Create mutex for channel cache protection
+    channelCacheMutex = xSemaphoreCreateMutex();
+    if (channelCacheMutex == NULL) {
+      Serial.println("[DMX] ERROR: Failed to create channel cache mutex");
+      return false;
+    }
+    
     // Initialize DMX on UART2 with RX pin from HardwareConfig
     // Note: ESP32S3DMX begin() parameters are: uart_num, rx_pin, tx_pin, enable_pin
     // For receive-only, we need to properly configure the pins
     Serial.printf("[DMX] Configuring UART2 with RX on GPIO %d\n", DMX_RO_PIN);
     
-    // The ESP32S3DMX library might need the enable pin for RS485 direction control
-    // Try with the DE/RE pin defined in HardwareConfig
-    dmx.begin(2, DMX_RO_PIN, DMX_DI_PIN, DMX_DE_RE_PIN);  // UART2, GPIO 6 (RX), GPIO 4 (TX), GPIO 5 (DE/RE)
-    
-    // Make sure the RS485 transceiver is in receive mode
+    // Configure DE/RE pin with pull-down to ensure stable receive mode
     pinMode(DMX_DE_RE_PIN, OUTPUT);
-    digitalWrite(DMX_DE_RE_PIN, LOW);  // LOW = receive mode for most RS485 transceivers
+    digitalWrite(DMX_DE_RE_PIN, LOW);  // LOW = receive mode for RS485 transceiver
+    // Add internal pull-down to prevent floating
+    gpio_set_pull_mode((gpio_num_t)DMX_DE_RE_PIN, GPIO_PULLDOWN_ONLY);
+    
+    // Initialize DMX library
+    // Note: The RX/TX pins might be swapped based on the "SWAPPED" comment in HardwareConfig
+    // Using: UART2, GPIO 6 (RX), GPIO 4 (TX), GPIO 5 (DE/RE)
+    dmx.begin(2, DMX_RO_PIN, DMX_DI_PIN, DMX_DE_RE_PIN);
+    
+    // Double-check DE/RE is still low after library init
+    digitalWrite(DMX_DE_RE_PIN, LOW);
     
     Serial.println("[DMX] RS485 transceiver set to receive mode");
     
@@ -732,8 +835,13 @@ namespace DMXReceiver {
    * @return true if values retrieved successfully
    */
   bool getChannelCache(uint8_t cache[5]) {
-    memcpy(cache, channelCache, NUM_CHANNELS);
-    return true;
+    bool success = false;
+    if (xSemaphoreTake(channelCacheMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+      memcpy(cache, channelCache, NUM_CHANNELS);
+      xSemaphoreGive(channelCacheMutex);
+      success = true;
+    }
+    return success;
   }
   
   /**
@@ -773,11 +881,16 @@ namespace DMXReceiver {
    * @return Number of characters written
    */
   size_t getFormattedChannelValues(char* buffer, size_t bufferSize) {
+    uint8_t safeCache[NUM_CHANNELS] = {0};
+    if (xSemaphoreTake(channelCacheMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+      memcpy(safeCache, channelCache, NUM_CHANNELS);
+      xSemaphoreGive(channelCacheMutex);
+    }
     return snprintf(buffer, bufferSize, 
       "Ch%d-Ch%d: [%3d,%3d,%3d,%3d,%3d]",
       baseChannel, baseChannel + 4,
-      channelCache[0], channelCache[1], channelCache[2], 
-      channelCache[3], channelCache[4]
+      safeCache[0], safeCache[1], safeCache[2], 
+      safeCache[3], safeCache[4]
     );
   }
   
@@ -834,5 +947,31 @@ namespace DMXReceiver {
    */
   DMXMode getCurrentMode() {
     return currentMode;
+  }
+  
+  /**
+   * Check if the DMX task is healthy (responding within timeout)
+   * @return true if task has updated within last 5 seconds
+   */
+  bool isTaskHealthy() {
+    // Check if task has updated within timeout period
+    uint32_t timeSinceUpdate = millis() - g_lastTaskUpdate;
+    return (timeSinceUpdate < TASK_HEALTH_TIMEOUT_MS);
+  }
+  
+  /**
+   * Get the last task update timestamp
+   * @return milliseconds timestamp of last task update
+   */
+  uint32_t getLastTaskUpdateTime() {
+    return g_lastTaskUpdate;
+  }
+  
+  /**
+   * Get the DMX task handle for monitoring
+   * @return TaskHandle_t or nullptr if not initialized
+   */
+  TaskHandle_t getTaskHandle() {
+    return dmxTaskHandle;
   }
 }

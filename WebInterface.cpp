@@ -9,6 +9,7 @@
 #include "StepperController.h"  // Ensure StepperController interface is included
 #include "SerialInterface.h"    // For processCommand function
 #include "DMXReceiver.h"        // For DMX status information
+#include "InputValidation.h"    // For input bounds checking
 #include <esp_random.h>         // For esp_random() function
 #include <esp_system.h>         // For esp_reset_reason()
 
@@ -280,6 +281,12 @@ String WebInterface::getIndexHTML() {
                         <input type="range" id="homingSpeed" min="100" max="10000" step="100">
                         <span id="homingSpeedValue">--</span> steps/sec
                     </div>
+                    <div class="config-item">
+                        <label for="limitSafetyMargin">Limit Safety Margin:</label>
+                        <input type="range" id="limitSafetyMargin" min="50" max="1000" step="10">
+                        <span id="limitSafetyMarginValue">--</span> steps
+                        <small class="param-info">Distance to stay away from limit switches (50-1000 steps)</small>
+                    </div>
                 </div>
                 <div id="allMotionParams" style="display:none;">
                     <div class="config-item">
@@ -296,6 +303,12 @@ String WebInterface::getIndexHTML() {
                         <label for="homingSpeed">Homing Speed:</label>
                         <input type="range" id="homingSpeedAlso" min="100" max="10000" step="100">
                         <span id="homingSpeedAlsoValue">--</span> steps/sec
+                    </div>
+                    <div class="config-item">
+                        <label for="limitSafetyMargin">Limit Safety Margin:</label>
+                        <input type="range" id="limitSafetyMargin" min="50" max="1000" step="10">
+                        <span id="limitSafetyMarginValue">--</span> steps
+                        <small class="param-info">Distance to stay away from limit switches (50-1000 steps)</small>
                     </div>
                 </div>
                 
@@ -372,6 +385,13 @@ String WebInterface::getIndexHTML() {
                 </div>
             </div>
 
+            
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="livePreview" onchange="toggleLivePreview()">
+                    <span>Live Preview - Adjust speed/acceleration in real-time during motion (changes not saved to flash)</span>
+                </label>
+            </div>
             
             <button class="btn btn-primary" onclick="applyConfig()">Apply Changes</button>
             <button class="btn btn-secondary" onclick="loadConfig()">Reload</button>
@@ -851,6 +871,7 @@ let wsReconnectTimer = null;
 let motorEnabled = false;
 let isAdjustingSliders = false;  // Track if user is adjusting sliders
 let detectedLimits = null;  // Store detected position limits from homing
+let livePreviewEnabled = false;  // Track if live preview mode is active
 
 // WebSocket connection management
 function connectWebSocket() {
@@ -1204,6 +1225,10 @@ function updateUI(data) {
                 document.getElementById('homingSpeedAlsoValue').textContent = data.config.homingSpeed;
             }
         }
+        if (data.config.limitSafetyMargin !== undefined) {
+            document.getElementById('limitSafetyMargin').value = data.config.limitSafetyMargin;
+            document.getElementById('limitSafetyMarginValue').textContent = data.config.limitSafetyMargin;
+        }
         if (data.config.jerk !== undefined) {
             document.getElementById('jerk').value = data.config.jerk;
             document.getElementById('jerkValue').textContent = data.config.jerk;
@@ -1311,6 +1336,28 @@ function jog(steps) {
     sendCommand('jog', { steps: steps });
 }
 
+function toggleLivePreview() {
+    livePreviewEnabled = document.getElementById('livePreview').checked;
+    
+    if (livePreviewEnabled) {
+        console.log('Live preview enabled - changes will apply immediately');
+        // Show a notification
+        const msg = document.createElement('div');
+        msg.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #00ff88; color: black; padding: 10px 20px; border-radius: 5px; z-index: 1000;';
+        msg.textContent = 'Live Preview ON - Changes apply immediately';
+        document.body.appendChild(msg);
+        setTimeout(() => msg.remove(), 3000);
+    } else {
+        console.log('Live preview disabled - use Apply Changes to save');
+        // Show a notification
+        const msg = document.createElement('div');
+        msg.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #ffaa00; color: black; padding: 10px 20px; border-radius: 5px; z-index: 1000;';
+        msg.textContent = 'Live Preview OFF - Use Apply Changes to save';
+        document.body.appendChild(msg);
+        setTimeout(() => msg.remove(), 3000);
+    }
+}
+
 function applyConfig() {
     // Determine which tab is currently active
     const activeTab = document.querySelector('.config-tab.active').id;
@@ -1328,6 +1375,9 @@ function applyConfig() {
         } else {
             config.homingSpeed = parseInt(document.getElementById('homingSpeed').value);
         }
+        
+        // Limit safety margin
+        config.limitSafetyMargin = parseInt(document.getElementById('limitSafetyMargin').value);
         
         // Position limits - convert percentages to actual positions if homed
         if (detectedLimits) {
@@ -1466,11 +1516,29 @@ document.getElementById('maxPositionPercent').addEventListener('input', (e) => {
 document.getElementById('maxSpeed').addEventListener('input', (e) => {
     isAdjustingSliders = true;
     document.getElementById('maxSpeedValue').textContent = e.target.value;
+    
+    // Send live update if live preview is enabled
+    if (livePreviewEnabled) {
+        const config = {
+            maxSpeed: parseInt(e.target.value),
+            live: true  // Mark as live update (no flash save)
+        };
+        sendCommand('config', { params: config });
+    }
 });
 
 document.getElementById('acceleration').addEventListener('input', (e) => {
     isAdjustingSliders = true;
     document.getElementById('accelerationValue').textContent = e.target.value;
+    
+    // Send live update if live preview is enabled
+    if (livePreviewEnabled) {
+        const config = {
+            acceleration: parseInt(e.target.value),
+            live: true  // Mark as live update (no flash save)
+        };
+        sendCommand('config', { params: config });
+    }
 });
 
 document.getElementById('homingSpeed').addEventListener('input', (e) => {
@@ -1482,6 +1550,11 @@ document.getElementById('homingSpeed').addEventListener('input', (e) => {
         alsoSlider.value = e.target.value;
         document.getElementById('homingSpeedAlsoValue').textContent = e.target.value;
     }
+});
+
+document.getElementById('limitSafetyMargin').addEventListener('input', (e) => {
+    isAdjustingSliders = true;
+    document.getElementById('limitSafetyMarginValue').textContent = e.target.value;
 });
 
 // Add listener for the duplicate homing speed slider
@@ -2641,16 +2714,18 @@ void WebInterface::getSystemStatus(JsonDocument& doc) {
     // Task diagnostics - get stack high water marks
     JsonObject tasks = diag.createNestedObject("tasks");
     
-    // StepperController task - check if it's running based on system state
-    // We can't directly access the task handle, so use motion state as proxy
-    MotionState motionState;
-    SAFE_READ_STATUS(motionState, motionState);
-    tasks["stepperExists"] = (motionState != MotionState::IDLE || StepperController::isHomed());
+    // StepperController task - check actual task health
+    tasks["stepperExists"] = StepperController::isTaskHealthy();
+    tasks["stepperLastUpdate"] = StepperController::getLastTaskUpdateTime();
     // Stack info not available without access to task handle
     
-    // DMXReceiver task - check if module is active
-    tasks["dmxExists"] = DMXReceiver::getState() != DMXState::NO_SIGNAL;
-    // Stack info not available without access to task handle
+    // DMXReceiver task - check actual task health
+    tasks["dmxExists"] = DMXReceiver::isTaskHealthy();
+    tasks["dmxLastUpdate"] = DMXReceiver::getLastTaskUpdateTime();
+    TaskHandle_t dmxHandle = DMXReceiver::getTaskHandle();
+    if (dmxHandle != nullptr) {
+        tasks["dmxStack"] = uxTaskGetStackHighWaterMark(dmxHandle);
+    }
     
     // WebInterface tasks
     if (webTaskHandle != nullptr) {
@@ -2720,11 +2795,18 @@ void WebInterface::getSystemInfo(JsonDocument& doc) {
 }
 
 bool WebInterface::sendMotionCommand(CommandType type, int32_t position) {
-    MotionCommand cmd;
+    MotionCommand cmd = {};  // Zero-initialize to avoid random values
     cmd.type = type;
     cmd.timestamp = millis();
     cmd.commandId = nextCommandId++;
     
+    // Get current motion profile from config to use proper speed/acceleration
+    SystemConfig* config = SystemConfigMgr::getConfig();
+    if (config) {
+        cmd.profile = config->defaultProfile;  // Load saved speed, acceleration, etc.
+    }
+    
+    // Override target position for movement commands
     if (type == CommandType::MOVE_ABSOLUTE || type == CommandType::MOVE_RELATIVE) {
         cmd.profile.targetPosition = position;
     }
@@ -2736,7 +2818,17 @@ bool WebInterface::sendMotionCommand(CommandType type, int32_t position) {
 bool WebInterface::updateConfiguration(const JsonDocument& params) {
     bool success = true;
     
-    Serial.println("[WebInterface] Updating configuration...");
+    // Check if this is a live update (no save to flash)
+    bool liveUpdate = false;
+    if (params.containsKey("live")) {
+        liveUpdate = params["live"];
+    }
+    
+    if (liveUpdate) {
+        Serial.println("[WebInterface] Live parameter update (no flash save)...");
+    } else {
+        Serial.println("[WebInterface] Updating configuration...");
+    }
     
     // Get current config
     SystemConfig* config = SystemConfigMgr::getConfig();
@@ -2752,6 +2844,8 @@ bool WebInterface::updateConfiguration(const JsonDocument& params) {
     // Update all configuration values
     if (params.containsKey("maxSpeed")) {
         float speed = params["maxSpeed"];
+        InputValidation::validateFloat(speed, ParamLimits::MIN_SPEED, 
+                                      ParamLimits::MAX_SPEED, "maxSpeed");
         config->defaultProfile.maxSpeed = speed;
         speedUpdated = true;
         Serial.printf("[WebInterface] Setting maxSpeed to: %.1f\n", speed);
@@ -2759,6 +2853,8 @@ bool WebInterface::updateConfiguration(const JsonDocument& params) {
     
     if (params.containsKey("acceleration")) {
         float accel = params["acceleration"];
+        InputValidation::validateFloat(accel, ParamLimits::MIN_ACCELERATION,
+                                      ParamLimits::MAX_ACCELERATION, "acceleration");
         config->defaultProfile.acceleration = accel;
         config->defaultProfile.deceleration = accel;
         accelUpdated = true;
@@ -2767,8 +2863,18 @@ bool WebInterface::updateConfiguration(const JsonDocument& params) {
     
     if (params.containsKey("homingSpeed")) {
         float speed = params["homingSpeed"];
+        InputValidation::validateFloat(speed, ParamLimits::MIN_HOMING_SPEED,
+                                      ParamLimits::MAX_HOMING_SPEED, "homingSpeed");
         config->homingSpeed = speed;
         Serial.printf("[WebInterface] Setting homingSpeed to: %.1f\n", speed);
+    }
+    
+    if (params.containsKey("limitSafetyMargin")) {
+        float margin = params["limitSafetyMargin"];
+        InputValidation::validateFloat(margin, ParamLimits::MIN_LIMIT_MARGIN,
+                                      ParamLimits::MAX_LIMIT_MARGIN, "limitSafetyMargin");
+        config->limitSafetyMargin = margin;
+        Serial.printf("[WebInterface] Setting limitSafetyMargin to: %.1f\n", margin);
     }
     
     if (params.containsKey("jerk")) {
@@ -2784,12 +2890,17 @@ bool WebInterface::updateConfiguration(const JsonDocument& params) {
     }
     
     if (params.containsKey("dmxChannel")) {
-        config->dmxStartChannel = params["dmxChannel"];
+        int32_t channel = params["dmxChannel"];
+        InputValidation::validateInt32(channel, ParamLimits::MIN_DMX_CHANNEL,
+                                      ParamLimits::MAX_DMX_CHANNEL, "dmxChannel");
+        config->dmxStartChannel = channel;
         Serial.printf("[WebInterface] Setting dmxChannel to: %d\n", config->dmxStartChannel);
     }
     
     if (params.containsKey("dmxTimeout")) {
-        uint32_t timeout = params["dmxTimeout"];
+        int32_t timeout = params["dmxTimeout"];
+        InputValidation::validateInt32(timeout, ParamLimits::MIN_DMX_TIMEOUT,
+                                      ParamLimits::MAX_DMX_TIMEOUT, "dmxTimeout");
         config->dmxTimeout = timeout;
         Serial.printf("[WebInterface] Setting dmxTimeout to: %u\n", timeout);
     }
@@ -2827,25 +2938,45 @@ bool WebInterface::updateConfiguration(const JsonDocument& params) {
         Serial.printf("[WebInterface] Setting autoHomeOnEstop to: %s\n", config->autoHomeOnEstop ? "ON" : "OFF");
     }
     
-    // Save to flash
-    if (SystemConfigMgr::saveToEEPROM()) {
-        Serial.println("[WebInterface] Configuration saved to flash");
-        
-        // Now update StepperController with any motion changes
+    // For live updates, skip saving to flash
+    if (liveUpdate) {
+        // Just update StepperController with motion changes
         if (speedUpdated) {
             if (!StepperController::setMaxSpeed(config->defaultProfile.maxSpeed)) {
                 Serial.println("[WebInterface] Warning: Failed to update StepperController maxSpeed");
+            } else {
+                Serial.println("[WebInterface] Live speed update applied");
             }
         }
         
         if (accelUpdated) {
             if (!StepperController::setAcceleration(config->defaultProfile.acceleration)) {
                 Serial.println("[WebInterface] Warning: Failed to update StepperController acceleration");
+            } else {
+                Serial.println("[WebInterface] Live acceleration update applied");
             }
         }
     } else {
-        Serial.println("[WebInterface] Failed to save configuration to flash");
-        success = false;
+        // Save to flash for permanent updates
+        if (SystemConfigMgr::saveToEEPROM()) {
+            Serial.println("[WebInterface] Configuration saved to flash");
+            
+            // Now update StepperController with any motion changes
+            if (speedUpdated) {
+                if (!StepperController::setMaxSpeed(config->defaultProfile.maxSpeed)) {
+                    Serial.println("[WebInterface] Warning: Failed to update StepperController maxSpeed");
+                }
+            }
+            
+            if (accelUpdated) {
+                if (!StepperController::setAcceleration(config->defaultProfile.acceleration)) {
+                    Serial.println("[WebInterface] Warning: Failed to update StepperController acceleration");
+                }
+            }
+        } else {
+            Serial.println("[WebInterface] Failed to save configuration to flash");
+            success = false;
+        }
     }
     
     return success;
@@ -2895,9 +3026,14 @@ bool WebInterface::validateCommand(const JsonDocument& cmd) {
     // Validate move commands
     if (command == "move" && cmd.containsKey("position")) {
         int32_t pos = cmd["position"];
-        SystemConfig* config = SystemConfigMgr::getConfig();
-        return (pos >= config->minPosition && 
-                pos <= config->maxPosition);
+        // Use centralized validation with automatic clamping
+        if (!InputValidation::validateInt32(pos, ParamLimits::MIN_POSITION, 
+                                           ParamLimits::MAX_POSITION, "move position")) {
+            Serial.println("[WebInterface] Move position out of range, clamped");
+        }
+        // Update the command with the validated value
+        const_cast<JsonDocument&>(cmd)["position"] = pos;
+        return true;
     }
     
     return true;

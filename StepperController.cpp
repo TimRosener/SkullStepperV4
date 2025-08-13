@@ -18,6 +18,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/semphr.h>
+#include <esp_task_wdt.h>
 
 // ============================================================================
 // Static Variables and Constants
@@ -111,8 +112,7 @@ static HomingState g_homingState = HomingState::IDLE;
 static uint8_t g_homingProgress = 0;
 static int32_t g_detectedRightLimit = 0;
 static float g_homingSpeed = 940.0f;  // Homing speed (steps/sec) - loaded from config
-static const int32_t BACKOFF_STEPS = 50;  // steps to back off from limits
-static const int32_t POSITION_MARGIN = 10; // safety margin from limits
+static float g_limitSafetyMargin = 400.0f;  // Total safety margin from switches - loaded from config
 static const uint32_t HOMING_TIMEOUT_MS = 90000; // 90 second timeout for finding limits (3x longer for full travel)
 static uint32_t g_homingStartTime = 0;
 static uint32_t g_homingPhaseStartTime = 0;
@@ -125,6 +125,14 @@ static uint32_t g_lastAlarmCheck = 0;
 static bool g_autoHomeRequested = false;
 static uint32_t g_autoHomeRequestTime = 0;
 static const uint32_t AUTO_HOME_DELAY_MS = 2000;  // 2 second delay after E-stop
+
+// Task health monitoring
+static uint32_t g_lastTaskUpdate = 0;
+static const uint32_t TASK_HEALTH_TIMEOUT_MS = 5000;  // Task is unhealthy if no update for 5 seconds
+
+// Motion timeout detection
+static uint32_t g_motionStartTime = 0;
+static const uint32_t MOTION_TIMEOUT_MS = 30000;  // 30 second timeout for any motion
 
 // ============================================================================
 // Interrupt Service Routines (MINIMAL!)
@@ -283,11 +291,17 @@ static void updateHomingSequence() {
         return; // Skip this cycle if can't get mutex quickly
     }
     
+    // Track state changes to avoid repeated messages
+    static HomingState lastPrintedState = HomingState::IDLE;
+    bool stateChanged = (g_homingState != lastPrintedState);
+    
     // Check for overall homing timeout
     if (millis() - g_homingStartTime > HOMING_TIMEOUT_MS) {
-        g_homingState = HomingState::ERROR;
-        g_stepper->forceStop();
-        Serial.println("StepperController: ERROR - Homing timeout!");
+        if (g_homingState != HomingState::ERROR) {
+            g_homingState = HomingState::ERROR;
+            g_stepper->forceStop();
+            Serial.println("StepperController: ERROR - Homing timeout!");
+        }
     }
     
     switch (g_homingState) {
@@ -309,13 +323,15 @@ static void updateHomingSequence() {
         case HomingState::BACKING_OFF_LEFT:
             g_homingProgress = 25;
             if (!g_stepper->isRunning()) {
-                // Back off from limit
-                g_stepper->move(BACKOFF_STEPS);
+                // Back off from limit (80% of safety margin)
+                int32_t backoffSteps = (int32_t)(g_limitSafetyMargin * 0.8f);
+                g_stepper->move(backoffSteps);
             } else if (g_stepper->isRunning() && !g_leftLimitState) {
                 // Finished backing off, set home position
-                g_stepper->setCurrentPosition(0);
-                g_currentPosition = 0;
-                g_minPosition = POSITION_MARGIN;
+                int32_t backoffSteps = (int32_t)(g_limitSafetyMargin * 0.8f);
+                g_stepper->setCurrentPosition(backoffSteps);
+                g_currentPosition = backoffSteps;
+                g_minPosition = (int32_t)g_limitSafetyMargin;  // Full safety margin from switch
                 
                 // Start moving to find right limit - use a much larger distance
                 g_stepper->setSpeedInHz(g_homingSpeed);
@@ -350,24 +366,28 @@ static void updateHomingSequence() {
         case HomingState::BACKING_OFF_RIGHT:
             g_homingProgress = 75;
             if (!g_stepper->isRunning()) {
-                // Back off from limit
-                g_stepper->move(-BACKOFF_STEPS);
+                // Back off from limit (80% of safety margin)
+                int32_t backoffSteps = (int32_t)(g_limitSafetyMargin * 0.8f);
+                g_stepper->move(-backoffSteps);
             } else if (g_stepper->isRunning() && !g_rightLimitState) {
                 // Finished backing off, set physical operating limits
-                g_maxPosition = g_stepper->getCurrentPosition() - POSITION_MARGIN;
+                int32_t positionMargin = (int32_t)(g_limitSafetyMargin * 0.2f);
+                g_maxPosition = g_stepper->getCurrentPosition() - positionMargin;
                 g_positionLimitsValid = true;
                 
                 // Get configuration
                 SystemConfig* config = SystemConfigMgr::getConfig();
                 if (config) {
                     // If user limits are not set or invalid, set them to physical limits
+                    bool minLimitUpdated = false;
+                    bool maxLimitUpdated = false;
                     if (config->minPosition < g_minPosition || config->minPosition >= g_maxPosition) {
                         config->minPosition = g_minPosition;
-                        Serial.printf("StepperController: Setting user minPosition to physical limit: %d\n", g_minPosition);
+                        minLimitUpdated = true;
                     }
                     if (config->maxPosition > g_maxPosition || config->maxPosition <= g_minPosition) {
                         config->maxPosition = g_maxPosition;
-                        Serial.printf("StepperController: Setting user maxPosition to physical limit: %d\n", g_maxPosition);
+                        maxLimitUpdated = true;
                     }
                     
                     // Save the updated configuration
@@ -383,12 +403,9 @@ static void updateHomingSequence() {
                     g_stepper->moveTo(homePosition);
                     g_homingState = HomingState::MOVING_TO_CENTER;
                     
-                    Serial.printf("StepperController: Physical range: %d to %d steps\n", 
-                                 g_minPosition, g_maxPosition);
-                    Serial.printf("StepperController: User-configured range: %d to %d steps\n",
-                                 config->minPosition, config->maxPosition);
-                    Serial.printf("StepperController: Moving to home position: %d (%.1f%% of range)\n",
-                                 homePosition, homePercent);
+                    // Print summary once when transitioning to MOVING_TO_CENTER
+                    Serial.printf("StepperController: Range detected: %d to %d (%d steps), moving to %.1f%%\n", 
+                                 g_minPosition, g_maxPosition, g_maxPosition - g_minPosition, homePercent);
                 } else {
                     // No config, just use center position
                     int32_t homePosition = (g_minPosition + g_maxPosition) / 2;
@@ -396,7 +413,8 @@ static void updateHomingSequence() {
                     g_stepper->moveTo(homePosition);
                     g_homingState = HomingState::MOVING_TO_CENTER;
                     
-                    Serial.printf("StepperController: No config available, moving to center: %d\n", homePosition);
+                    Serial.printf("StepperController: Range detected: %d to %d, moving to center\n", 
+                                 g_minPosition, g_maxPosition);
                 }
             }
             break;
@@ -413,12 +431,8 @@ static void updateHomingSequence() {
                 SAFE_WRITE_STATUS(safetyState, SafetyState::NORMAL);  // Clear safety state
                 
                 uint32_t homingTime = millis() - g_homingStartTime;
-                Serial.println("StepperController: Homing complete!");
-                Serial.println("StepperController: Limit faults cleared.");
-                Serial.printf("StepperController: Position range: %d to %d (%d total steps)\n",
-                             g_minPosition, g_maxPosition, g_maxPosition - g_minPosition);
-                Serial.printf("StepperController: Final position: %d\n", g_stepper->getCurrentPosition());
-                Serial.printf("StepperController: Homing took %lu ms\n", homingTime);
+                Serial.printf("StepperController: Homing complete! Position: %d, Time: %lu ms\n",
+                             g_stepper->getCurrentPosition(), homingTime);
             }
             break;
             
@@ -431,6 +445,9 @@ static void updateHomingSequence() {
         default:
             break;
     }
+    
+    // Update last printed state to track changes
+    lastPrintedState = g_homingState;
     
     xSemaphoreGive(g_stepperMutex);
 }
@@ -520,11 +537,13 @@ static void startHomingSequence() {
     g_homingStartTime = millis();
     g_homingPhaseStartTime = millis();
     
-    // Reload homing speed from configuration in case it was changed
+    // Reload homing parameters from configuration in case they were changed
     SystemConfig* config = SystemConfigMgr::getConfig();
     if (config) {
         g_homingSpeed = config->homingSpeed;
-        Serial.printf("StepperController: Using homing speed: %.1f steps/sec\n", g_homingSpeed);
+        g_limitSafetyMargin = config->limitSafetyMargin;
+        Serial.printf("StepperController: Homing speed: %.1f steps/sec, Safety margin: %.0f steps\n", 
+                     g_homingSpeed, g_limitSafetyMargin);
     }
     
     // Set homing speed from configuration
@@ -544,7 +563,8 @@ static void startHomingSequence() {
     if (g_leftLimitState) {
         Serial.println("StepperController: Already at left limit, backing off");
         g_homingState = HomingState::BACKING_OFF_LEFT;
-        g_stepper->move(BACKOFF_STEPS * 2); // Back off a bit more since we don't know exact position
+        int32_t backoffSteps = (int32_t)(g_limitSafetyMargin * 0.8f);
+        g_stepper->move(backoffSteps * 2); // Back off double since we don't know exact position
     } 
     // Check if we're at right limit (need to move left first)
     else if (g_rightLimitState) {
@@ -571,10 +591,18 @@ void stepperControllerTask(void* parameter) {
     const TickType_t xFrequency = pdMS_TO_TICKS(2); // 2ms for less frequent GPIO reads
     TickType_t xLastWakeTime = xTaskGetTickCount();
     
+    // Add this task to watchdog
+    esp_task_wdt_add(NULL);
+    
     Serial.println("StepperController: Core 0 task started");
     Serial.println("StepperController: Continuous limit monitoring enabled (2ms interval)");
+    Serial.println("StepperController: Watchdog timer active (10s timeout)");
+    
+    uint32_t lastWdtFeed = 0;
     
     while (true) {
+        // Update task health timestamp
+        g_lastTaskUpdate = millis();
         // ====================================================================
         // Check limit switches with continuous monitoring (every cycle - 2ms)
         // ====================================================================
@@ -646,6 +674,22 @@ void stepperControllerTask(void* parameter) {
             }
         }
         
+        // Feed watchdog timer periodically (every second)
+        if (millis() - lastWdtFeed > 1000) {
+            esp_task_wdt_reset();
+            lastWdtFeed = millis();
+        }
+        
+        // Check for motion timeout
+        if (g_stepper->isRunning() && g_motionStartTime > 0 && 
+            (millis() - g_motionStartTime > MOTION_TIMEOUT_MS)) {
+            Serial.println("ERROR: Motion timeout detected - stopping motor!");
+            g_stepper->forceStop();
+            g_motionState = MotionState::IDLE;
+            SAFE_WRITE_STATUS(safetyState, SafetyState::POSITION_ERROR);  // Use existing error state
+            g_motionStartTime = 0;  // Reset timeout
+        }
+        
         // Precise 2ms timing
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
@@ -702,11 +746,12 @@ bool initialize() {
         g_currentProfile.jerk = config->defaultProfile.jerk;
         g_currentProfile.enableLimits = config->defaultProfile.enableLimits;
         
-        // Load homing speed
+        // Load homing parameters
         g_homingSpeed = config->homingSpeed;
+        g_limitSafetyMargin = config->limitSafetyMargin;
         
-        Serial.printf("StepperController: Loaded saved config - Speed: %.1f, Accel: %.1f, Homing: %.1f\n",
-                     g_currentProfile.maxSpeed, g_currentProfile.acceleration, g_homingSpeed);
+        Serial.printf("StepperController: Loaded config - Speed: %.1f, Accel: %.1f, Homing: %.1f, Margin: %.0f\n",
+                     g_currentProfile.maxSpeed, g_currentProfile.acceleration, g_homingSpeed, g_limitSafetyMargin);
     } else {
         Serial.println("StepperController: WARNING - Using default config values");
     }
@@ -868,6 +913,7 @@ bool processMotionCommand(const MotionCommand& cmd) {
                 // No limits or limits disabled
                 g_stepper->moveTo(cmd.profile.targetPosition);
             }
+            g_motionStartTime = millis();  // Track when motion started for timeout detection
             success = true;
             // Removed debug output for move commands as requested
             break;
@@ -913,6 +959,7 @@ bool processMotionCommand(const MotionCommand& cmd) {
                     }
                 }
                 g_stepper->moveTo(targetPos);
+                g_motionStartTime = millis();  // Track when motion started for timeout detection
                 success = true;
                 Serial.printf("StepperController: Move relative %d\n", cmd.profile.targetPosition);
             }
@@ -921,16 +968,34 @@ bool processMotionCommand(const MotionCommand& cmd) {
         case CommandType::SET_SPEED:
             g_stepper->setSpeedInHz(cmd.profile.maxSpeed);
             g_currentProfile.maxSpeed = cmd.profile.maxSpeed;
+            
+            // Apply immediately to current motion if moving
+            if (g_stepper->isRunning()) {
+                // FastAccelStepper will smoothly transition to new speed
+                Serial.printf("StepperController: Changing speed to %.1f during active motion\n", 
+                              cmd.profile.maxSpeed);
+            } else {
+                Serial.printf("StepperController: Set speed to %.1f (will apply to next move)\n", 
+                              cmd.profile.maxSpeed);
+            }
             success = true;
-            Serial.printf("StepperController: Set speed to %.1f\n", cmd.profile.maxSpeed);
             break;
             
         case CommandType::SET_ACCELERATION:
             g_stepper->setAcceleration(cmd.profile.acceleration);
             g_currentProfile.acceleration = cmd.profile.acceleration;
             g_currentProfile.deceleration = cmd.profile.acceleration; // Same value
+            
+            // Apply immediately to current motion if moving
+            if (g_stepper->isRunning()) {
+                // FastAccelStepper will use new acceleration for speed changes
+                Serial.printf("StepperController: Changing acceleration to %.1f during active motion\n", 
+                              cmd.profile.acceleration);
+            } else {
+                Serial.printf("StepperController: Set acceleration to %.1f (will apply to next move)\n", 
+                              cmd.profile.acceleration);
+            }
             success = true;
-            Serial.printf("StepperController: Set acceleration to %.1f\n", cmd.profile.acceleration);
             break;
             
         case CommandType::HOME:
@@ -1225,6 +1290,16 @@ bool update() {
     // This function is called from Core 0 task
     // All updates happen in the task loop
     return g_initialized;
+}
+
+bool isTaskHealthy() {
+    // Check if task has updated within last 5 seconds
+    uint32_t timeSinceUpdate = millis() - g_lastTaskUpdate;
+    return (timeSinceUpdate < 5000);  // Healthy if updated within 5 seconds
+}
+
+uint32_t getLastTaskUpdateTime() {
+    return g_lastTaskUpdate;
 }
 
 } // namespace StepperController

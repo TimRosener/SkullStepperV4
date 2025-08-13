@@ -129,6 +129,7 @@ struct SystemConfig {
   int32_t minPosition;
   int32_t maxPosition;
   float homingSpeed;        // Speed for homing sequence (steps/sec)
+  float limitSafetyMargin;  // Steps to stay away from limit switches (default: 400)
   bool autoHomeOnBoot;      // Automatically home on system startup
   bool autoHomeOnEstop;     // Automatically home after emergency stop/limit fault
   

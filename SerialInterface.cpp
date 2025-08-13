@@ -13,6 +13,7 @@
 #include "SystemConfig.h"
 #include "StepperController.h"
 #include "DMXReceiver.h"
+#include "InputValidation.h"
 #include <ArduinoJson.h>
 #include <esp_random.h>
 
@@ -308,6 +309,14 @@ namespace SerialInterface {
         return true;
       }
     }
+    else if (param == "limitsafetymargin" || param == "limitmargin") {
+      config->limitSafetyMargin = 400.0f;  // Default safety margin
+      if (SystemConfigMgr::commitChanges()) {
+        sendInfo("Limit safety margin reset to default (400 steps)");
+        sendOK();
+        return true;
+      }
+    }
     else if (param == "homepositionpercent" || param == "homepercent") {
       config->homePositionPercent = 50.0f;  // Default to center
       if (SystemConfigMgr::commitChanges()) {
@@ -592,8 +601,11 @@ namespace SerialInterface {
         return false;
       }
       int32_t position;
-      if (!parseInteger(params.c_str(), position)) {
-        sendError("Invalid position value");
+      if (!InputValidation::parseAndValidateInt(params.c_str(), position,
+                                                ParamLimits::MIN_POSITION,
+                                                ParamLimits::MAX_POSITION,
+                                                "MOVE position")) {
+        sendError("Invalid position value or out of range");
         return false;
       }
       MotionCommand cmd = createMotionCommand(CommandType::MOVE_ABSOLUTE, position);
@@ -649,6 +661,56 @@ namespace SerialInterface {
       MotionCommand cmd = createMotionCommand(CommandType::DISABLE);
       return sendMotionCommand(cmd);
     }
+    else if (mainCmd == "SPEED") {
+      // Live speed adjustment without saving to flash
+      if (params == "") {
+        sendError("SPEED requires value parameter");
+        return false;
+      }
+      float speed;
+      if (!InputValidation::parseAndValidateFloat(params.c_str(), speed,
+                                                  ParamLimits::MIN_SPEED,
+                                                  ParamLimits::MAX_SPEED,
+                                                  "SPEED value")) {
+        sendError("Invalid speed value or out of range");
+        return false;
+      }
+      
+      // Send immediate speed change command
+      MotionCommand cmd = createMotionCommand(CommandType::SET_SPEED);
+      cmd.profile.maxSpeed = speed;
+      if (sendMotionCommand(cmd)) {
+        sendInfo("Speed adjusted (not saved to flash)");
+        Serial.printf("INFO: Live speed change to %.1f steps/sec\n", speed);
+        return true;
+      }
+      return false;
+    }
+    else if (mainCmd == "ACCEL") {
+      // Live acceleration adjustment without saving to flash
+      if (params == "") {
+        sendError("ACCEL requires value parameter");
+        return false;
+      }
+      float accel;
+      if (!InputValidation::parseAndValidateFloat(params.c_str(), accel,
+                                                  ParamLimits::MIN_ACCELERATION,
+                                                  ParamLimits::MAX_ACCELERATION,
+                                                  "ACCEL value")) {
+        sendError("Invalid acceleration value or out of range");
+        return false;
+      }
+      
+      // Send immediate acceleration change command
+      MotionCommand cmd = createMotionCommand(CommandType::SET_ACCELERATION);
+      cmd.profile.acceleration = accel;
+      if (sendMotionCommand(cmd)) {
+        sendInfo("Acceleration adjusted (not saved to flash)");
+        Serial.printf("INFO: Live acceleration change to %.1f steps/sec²\n", accel);
+        return true;
+      }
+      return false;
+    }
     else if (mainCmd == "ECHO") {
       if (params == "ON" || params == "1") {
         g_echoMode = true;
@@ -665,7 +727,10 @@ namespace SerialInterface {
     else if (mainCmd == "VERBOSE") {
       if (params != "") {
         int32_t level;
-        if (parseInteger(params.c_str(), level) && level >= 0 && level <= 3) {
+        if (InputValidation::parseAndValidateInt(params.c_str(), level,
+                                                 ParamLimits::MIN_VERBOSITY,
+                                                 ParamLimits::MAX_VERBOSITY,
+                                                 "VERBOSE level")) {
           g_verbosityLevel = level;
           sendOK();
         } else {
@@ -1186,8 +1251,11 @@ namespace SerialInterface {
     
     if (param == "maxspeed") {
       float speed;
-      if (!parseFloat(value, speed)) {
-        sendError("Invalid speed value");
+      if (!InputValidation::parseAndValidateFloat(value, speed,
+                                                  ParamLimits::MIN_SPEED,
+                                                  ParamLimits::MAX_SPEED,
+                                                  "maxSpeed")) {
+        sendError("Invalid speed value or out of range");
         return false;
       }
       sendDebug("Setting max speed");
@@ -1217,8 +1285,11 @@ namespace SerialInterface {
     }
     else if (param == "acceleration") {
       float accel;
-      if (!parseFloat(value, accel)) {
-        sendError("Invalid acceleration value");
+      if (!InputValidation::parseAndValidateFloat(value, accel,
+                                                  ParamLimits::MIN_ACCELERATION,
+                                                  ParamLimits::MAX_ACCELERATION,
+                                                  "acceleration")) {
+        sendError("Invalid acceleration value or out of range");
         return false;
       }
       sendDebug("Setting acceleration");
@@ -1321,8 +1392,11 @@ namespace SerialInterface {
     }
     else if (param == "homingspeed") {
       float speed;
-      if (!parseFloat(value, speed) || speed <= 0 || speed > 10000) {
-        sendError("Invalid homing speed value (must be 0-10000 steps/sec)");
+      if (!InputValidation::parseAndValidateFloat(value, speed,
+                                                  ParamLimits::MIN_HOMING_SPEED,
+                                                  ParamLimits::MAX_HOMING_SPEED,
+                                                  "homingSpeed")) {
+        sendError("Invalid homing speed value or out of range");
         return false;
       }
       sendDebug("Setting homing speed");
@@ -1333,6 +1407,23 @@ namespace SerialInterface {
         return true;
       } else {
         sendError("Failed to save homing speed to flash");
+        return false;
+      }
+    }
+    else if (param == "limitsafetymargin" || param == "limitmargin") {
+      float margin;
+      if (!parseFloat(value, margin) || margin < 50 || margin > 1000) {
+        sendError("Invalid limit safety margin (must be 50-1000 steps)");
+        return false;
+      }
+      sendDebug("Setting limit safety margin");
+      config->limitSafetyMargin = margin;
+      if (SystemConfigMgr::commitChanges()) {
+        sendInfo("Limit safety margin updated successfully");
+        sendOK();
+        return true;
+      } else {
+        sendError("Failed to save limit safety margin to flash");
         return false;
       }
     }
@@ -1761,6 +1852,10 @@ namespace SerialInterface {
     Serial.println("  ESTOP               - Emergency stop");
     Serial.println("  ENABLE              - Enable stepper motor");
     Serial.println("  DISABLE             - Disable stepper motor");
+    Serial.println("  SPEED <value>       - Live speed adjustment (0-10000 steps/sec)");
+    Serial.println("                        Changes speed immediately, doesn't save to flash");
+    Serial.println("  ACCEL <value>       - Live acceleration adjustment (0-20000 steps/sec²)");
+    Serial.println("                        Changes acceleration immediately, doesn't save to flash");
     Serial.println("  TEST                - Run range test (requires homing first)");
     Serial.println("                        Moves between 10% and 90% of range");
     Serial.println("                        Press any key to stop");
@@ -1811,6 +1906,8 @@ namespace SerialInterface {
     Serial.println("                      Jerk limitation (future use)");
     Serial.println("  homingSpeed         Range: 0-10000 steps/sec    Default: 940");
     Serial.println("                      Speed used during homing sequence");
+    Serial.println("  limitSafetyMargin   Range: 50-1000 steps         Default: 400");
+    Serial.println("                      Distance to stay away from limit switches");
     Serial.println("  homePositionPercent Range: 0-100 %              Default: 50");
     Serial.println("                      Position to return to after homing (% of range)");
     Serial.println("  autoHomeOnBoot      Boolean: true/false         Default: false");

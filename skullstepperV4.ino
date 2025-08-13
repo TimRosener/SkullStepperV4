@@ -16,6 +16,7 @@
 #include "SerialInterface.h"
 #include "SystemConfig.h"
 #include "ProjectConfig.h"  // Global project configuration
+#include <esp_task_wdt.h>   // ESP32 Task Watchdog Timer
 
 // Optional modules are now configured in ProjectConfig.h
 
@@ -48,6 +49,19 @@ void setup() {
   Serial.println("Version: 4.1.13 - Production Ready with System Diagnostics Tab");
   Serial.println("Memory-Safe, Thread-Safe Architecture");
   Serial.println("============================================================================");
+  
+  // ========================================================================
+  // Initialize Watchdog Timer for System Safety
+  // ========================================================================
+  Serial.println("Initializing watchdog timer (10 second timeout)...");
+  esp_task_wdt_config_t wdt_config = {
+    .timeout_ms = 10000,       // 10 seconds timeout
+    .idle_core_mask = 0,       // Not monitoring idle tasks
+    .trigger_panic = true      // Panic (reset) on timeout
+  };
+  esp_task_wdt_init(&wdt_config);  // Initialize watchdog with config
+  esp_task_wdt_add(NULL);           // Add current task (setup/loop) to watchdog
+  Serial.println("✓ Watchdog timer active");
   
   // ========================================================================
   // STEP 1: Initialize Thread-Safe Global Infrastructure
@@ -256,6 +270,19 @@ void loop() {
   
   // Note: StepperController runs on Core 0 in its own task
   // This loop handles Core 1 responsibilities only
+  
+  // Feed watchdog timer periodically
+  static uint32_t lastWdtFeed = 0;
+  if (millis() - lastWdtFeed > 3000) {  // Feed every 3 seconds
+    esp_task_wdt_reset();
+    lastWdtFeed = millis();
+    
+    // Check if critical tasks are healthy
+    if (!StepperController::isTaskHealthy()) {
+      Serial.println("CRITICAL: StepperController task not responding!");
+      Serial.println("System will restart in 7 seconds unless task recovers...");
+    }
+  }
   
   // Update serial interface (COMPLETE command processing system with JSON API)
   // This handles ALL commands: human-readable, JSON API, skull> prompt, etc.
