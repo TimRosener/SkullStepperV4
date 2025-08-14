@@ -4,6 +4,38 @@
 **Date**: 2025-02-08  
 **Status**: Production-Ready with DMX Development in Progress
 
+## Project Structure
+
+```
+SkullStepperV4/
+├── SkullStepperV4.ino          # Main Arduino sketch
+├── *.h, *.cpp                  # Source files (flat for Arduino IDE compatibility)
+├── docs/                       # Documentation
+│   ├── guides/                 # User guides and references
+│   │   ├── SerialInterface_Manual.md
+│   │   ├── WebInterface_Guide.md
+│   │   ├── QUICK_REFERENCE.md
+│   │   ├── TESTING_PROTOCOL.md
+│   │   └── PUBLISHING.md
+│   └── design/                 # Architecture and design docs
+│       ├── design_docs.md
+│       ├── DMX_Implementation_Plan.md
+│       └── MOVEHOME_Implementation.md
+├── scripts/                    # Utility scripts
+│   ├── check_and_push.sh
+│   ├── preflight_check.sh
+│   └── (other shell scripts)
+├── extras/                     # Additional resources
+│   ├── diagnostics/           # Diagnostic tools and analysis
+│   └── PROJECT_HEADER_TEMPLATE.txt
+├── README.md                   # This file
+├── CHANGELOG.md               # Version history
+├── LICENSE                    # MIT License
+└── claude.md                  # AI assistant context
+
+Note: Source files remain in root directory to maintain Arduino IDE compatibility.
+```
+
 ## System Architecture Overview
 
 ### Core Design Principles
