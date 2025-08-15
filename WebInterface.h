@@ -1,6 +1,13 @@
+// ============================================================================
+// File: WebInterface.h
+// Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
+// Version: 4.1.13
+// Date: 2025-02-08
+// Author: Tim Rosener
+// Description: WiFi Access Point and Web-based control interface
+// License: MIT
+// ============================================================================
 /*
- * WebInterface.h
- * 
  * WiFi Access Point and Web-based control interface for SkullStepperV4
  * Using built-in ESP32 WebServer and WebSocketsServer
  * Compatible with ESP32 Arduino Core 3.x

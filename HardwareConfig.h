@@ -1,8 +1,8 @@
 // ============================================================================
 // File: HardwareConfig.h
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
-// Version: 4.0.0
-// Date: 2025-01-23
+// Version: 4.1.13
+// Date: 2025-02-08
 // Author: Tim Rosener
 // Description: Hardware pin definitions and system constants for ESP32-S3
 // License: MIT

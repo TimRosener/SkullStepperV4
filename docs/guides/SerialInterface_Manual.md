@@ -704,4 +704,4 @@ skull> DISABLE          # Disable motor
 
 ---
 
-*SkullStepperV4 Serial Interface Manual v4.0.0*
+*SkullStepperV4 Serial Interface Manual v4.1.13*

@@ -1,8 +1,8 @@
 // ============================================================================
 // File: GlobalInterface.h - Complete Thread-Safe Interface
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
-// Version: 4.0.0
-// Date: 2025-01-23
+// Version: 4.1.13
+// Date: 2025-02-08
 // Author: Tim Rosener
 // Description: Complete global data structures, enums, and thread-safe interfaces
 // License: MIT

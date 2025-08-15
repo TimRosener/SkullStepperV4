@@ -30,16 +30,26 @@ SkullStepperV4 is a production-ready ESP32-S3 closed-loop stepper control system
 ```
 SkullStepperV4/
 ├── SkullStepperV4.ino          # Main Arduino sketch
-├── README.md                    # Primary documentation (source of truth)
-├── CHANGELOG.md                 # Version history
-├── QUICK_REFERENCE.md          # Essential commands
-├── SerialInterface_Manual.md    # Complete command reference
-├── WebInterface_Design.md       # Web interface specification
-├── design_docs.md              # Detailed architecture
-├── TESTING_PROTOCOL.md         # Testing procedures
-├── PUBLISHING.md               # Git workflow guide
-├── claude.md                   # This file - AI assistant guide
-│
+├── *.h, *.cpp                  # Source files (flat for Arduino IDE compatibility)
+├── docs/                       # Documentation
+│   ├── guides/                 # User guides and references
+│   │   ├── QUICK_REFERENCE.md
+│   │   ├── SerialInterface_Manual.md
+│   │   ├── WebInterface_Guide.md
+│   │   ├── WebInterface_Design.md
+│   │   ├── TESTING_PROTOCOL.md
+│   │   └── PUBLISHING.md
+│   └── design/                 # Architecture and design docs
+│       ├── design_docs.md
+│       └── DMX_Implementation_Plan.md
+├── scripts/                    # Utility scripts
+├── extras/                     # Additional resources
+├── README.md                   # Primary documentation (source of truth)
+├── CHANGELOG.md                # Version history
+├── LICENSE                     # MIT License
+└── claude.md                   # This file - AI assistant guide
+
+Key Source Files:
 ├── GlobalInterface.h           # Shared data structures and interfaces
 ├── HardwareConfig.h           # Pin definitions and hardware constants
 ├── GlobalInfrastructure.h/cpp  # Thread-safe infrastructure (mutexes, queues)
@@ -47,7 +57,7 @@ SkullStepperV4/
 ├── SerialInterface.h/cpp       # Serial command processing (Core 1)
 ├── WebInterface.h/cpp          # Web control interface (Core 1)
 ├── StepperController.h/cpp     # Motion control (Core 0)
-└── DMXReceiver.h/cpp          # DMX512 interface (Core 0) - IN PROGRESS
+└── DMXReceiver.h/cpp          # DMX512 interface (Core 0)
 ```
 
 ## Key Technical Details
@@ -161,9 +171,12 @@ Fixes #issue_number (if applicable)
 - ✅ **Phase 5**: WebInterface with real-time control
 
 ### In Progress
-- 🚧 **Phase 6**: DMXReceiver module (Phase 1 of 8 complete)
+- 🚧 **Phase 6**: DMXReceiver module (Phases 1-5 of 8 complete)
   - Core infrastructure implemented
-  - Channel processing remaining
+  - Channel processing implemented
+  - Motion integration complete
+  - Web interface integration complete (v4.1.11)
+  - Remaining: Serial commands, UI enhancements, testing
 
 ### Future Phases
 - 🔄 **Phase 7**: SafetyMonitor module (optional refactor)
@@ -176,8 +189,8 @@ Fixes #issue_number (if applicable)
 2. Add command parsing in processCommand()
 3. Implement command logic
 4. Update help text in printHelp()
-5. Add to QUICK_REFERENCE.md
-6. Update SerialInterface_Manual.md
+5. Add to docs/guides/QUICK_REFERENCE.md
+6. Update docs/guides/SerialInterface_Manual.md
 
 ### Modifying Configuration Parameters
 1. Add to SystemConfig struct in GlobalInterface.h
