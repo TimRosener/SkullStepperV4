@@ -275,20 +275,7 @@ String WebInterface::getIndexHTML() {
             <!-- Motion Configuration Tab - now includes Position Limits -->
             <div id="motion-tab" class="config-tab active">
                 <h3>Motion Parameters</h3>
-                <div id="homingSpeedOnly" style="display:block;">
-                    <div class="config-item">
-                        <label for="homingSpeed">Homing Speed:</label>
-                        <input type="range" id="homingSpeed" min="100" max="10000" step="100">
-                        <span id="homingSpeedValue">--</span> steps/sec
-                    </div>
-                    <div class="config-item">
-                        <label for="limitSafetyMargin">Limit Safety Margin:</label>
-                        <input type="range" id="limitSafetyMargin" min="50" max="1000" step="10">
-                        <span id="limitSafetyMarginValue">--</span> steps
-                        <small class="param-info">Distance to stay away from limit switches (50-1000 steps)</small>
-                    </div>
-                </div>
-                <div id="allMotionParams" style="display:none;">
+                <div id="motionParams">
                     <div class="config-item">
                         <label for="maxSpeed">Max Speed:</label>
                         <input type="range" id="maxSpeed" min="100" max="10000" step="100">
@@ -301,14 +288,14 @@ String WebInterface::getIndexHTML() {
                     </div>
                     <div class="config-item">
                         <label for="homingSpeed">Homing Speed:</label>
-                        <input type="range" id="homingSpeedAlso" min="100" max="10000" step="100">
-                        <span id="homingSpeedAlsoValue">--</span> steps/sec
+                        <input type="range" id="homingSpeed" min="100" max="10000" step="100">
+                        <span id="homingSpeedValue">--</span> steps/sec
                     </div>
                     <div class="config-item">
                         <label for="limitSafetyMargin">Limit Safety Margin:</label>
-                        <input type="range" id="limitSafetyMargin" min="50" max="1000" step="10">
+                        <input type="range" id="limitSafetyMargin" min="0" max="1000" step="10">
                         <span id="limitSafetyMarginValue">--</span> steps
-                        <small class="param-info">Distance to stay away from limit switches (50-1000 steps)</small>
+                        <small class="param-info">Distance to stay away from limit switches (0-1000 steps)</small>
                     </div>
                 </div>
                 
@@ -1188,12 +1175,12 @@ function updateUI(data) {
     
     // Handle position limits display
     if (data.positionLimits) {
-        if (data.positionLimits.valid) {
-            // Store detected limits
+        if (data.detectedLimits && data.detectedLimits.valid) {
+            // Store actual physical detected limits (where switches are)
             detectedLimits = {
-                min: data.positionLimits.min,
-                max: data.positionLimits.max,
-                range: data.positionLimits.range
+                min: data.detectedLimits.left,
+                max: data.detectedLimits.right,
+                range: data.detectedLimits.range
             };
             
             // Update limits display
@@ -1557,17 +1544,7 @@ document.getElementById('limitSafetyMargin').addEventListener('input', (e) => {
     document.getElementById('limitSafetyMarginValue').textContent = e.target.value;
 });
 
-// Add listener for the duplicate homing speed slider
-const homingSpeedAlso = document.getElementById('homingSpeedAlso');
-if (homingSpeedAlso) {
-    homingSpeedAlso.addEventListener('input', (e) => {
-        isAdjustingSliders = true;
-        document.getElementById('homingSpeedAlsoValue').textContent = e.target.value;
-        // Also update the primary slider
-        document.getElementById('homingSpeed').value = e.target.value;
-        document.getElementById('homingSpeedValue').textContent = e.target.value;
-    });
-}
+// Removed duplicate slider listener - now using single set of controls
 
 document.getElementById('jerk').addEventListener('input', (e) => {
     isAdjustingSliders = true;
@@ -1629,11 +1606,7 @@ document.getElementById('homingSpeed').addEventListener('touchstart', () => {
     isAdjustingSliders = true;
 });
 
-if (document.getElementById('homingSpeedAlso')) {
-    document.getElementById('homingSpeedAlso').addEventListener('touchstart', () => {
-        isAdjustingSliders = true;
-    });
-}
+// Removed duplicate slider touch listener
 
 document.getElementById('jerk').addEventListener('touchstart', () => {
     isAdjustingSliders = true;
@@ -1657,15 +1630,10 @@ function updateLimitsDisplay() {
     const maxPercentInput = document.getElementById('maxPositionPercent');
     const homePercentInput = document.getElementById('homePositionPercent');
     
-    // Also update motion parameters visibility
-    const homingSpeedOnly = document.getElementById('homingSpeedOnly');
-    const allMotionParams = document.getElementById('allMotionParams');
-    
+    // Update position limits visibility based on homing state
     if (detectedLimits) {
-        // System is homed - show all controls
+        // System is homed - show position limits section
         limitsContent.style.display = 'block';
-        homingSpeedOnly.style.display = 'none';
-        allMotionParams.style.display = 'block';
         
         // Update detected values display
         document.getElementById('detectedMin').textContent = detectedLimits.min;
@@ -1677,10 +1645,8 @@ function updateLimitsDisplay() {
         maxPercentInput.disabled = false;
         homePercentInput.disabled = false;
     } else {
-        // System not homed - show all controls but position limits section is hidden
+        // System not homed - hide position limits section
         limitsContent.style.display = 'none';
-        homingSpeedOnly.style.display = 'none';
-        allMotionParams.style.display = 'block';
         
         // Disable position limit inputs only
         minPercentInput.disabled = true;
@@ -2648,7 +2614,18 @@ void WebInterface::getSystemStatus(JsonDocument& doc) {
     doc["isHomed"] = StepperController::isHomed();
     doc["limitFaultActive"] = StepperController::isLimitFaultActive();
     
-    // Add position limits if homed
+    // Add detected physical limits (actual switch positions)
+    int32_t detectedLeft, detectedRight;
+    if (StepperController::getDetectedLimits(detectedLeft, detectedRight)) {
+        doc["detectedLimits"]["left"] = detectedLeft;
+        doc["detectedLimits"]["right"] = detectedRight;
+        doc["detectedLimits"]["range"] = detectedRight - detectedLeft;
+        doc["detectedLimits"]["valid"] = true;
+    } else {
+        doc["detectedLimits"]["valid"] = false;
+    }
+    
+    // Add operating position limits (includes safety margin)
     int32_t minPos, maxPos;
     if (StepperController::getPositionLimits(minPos, maxPos)) {
         doc["positionLimits"]["min"] = minPos;
@@ -2664,6 +2641,7 @@ void WebInterface::getSystemStatus(JsonDocument& doc) {
     doc["config"]["maxSpeed"] = config->defaultProfile.maxSpeed;
     doc["config"]["acceleration"] = config->defaultProfile.acceleration;
     doc["config"]["homingSpeed"] = config->homingSpeed;
+    doc["config"]["limitSafetyMargin"] = config->limitSafetyMargin;
     doc["config"]["jerk"] = config->defaultProfile.jerk;
     doc["config"]["emergencyDeceleration"] = config->emergencyDeceleration;
     doc["config"]["dmxChannel"] = config->dmxStartChannel;

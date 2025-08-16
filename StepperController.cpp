@@ -110,7 +110,8 @@ enum class HomingState {
 
 static HomingState g_homingState = HomingState::IDLE;
 static uint8_t g_homingProgress = 0;
-static int32_t g_detectedRightLimit = 0;
+static int32_t g_detectedLeftLimit = 0;   // Actual position where left switch triggered
+static int32_t g_detectedRightLimit = 0;  // Actual position where right switch triggered
 static float g_homingSpeed = 940.0f;  // Homing speed (steps/sec) - loaded from config
 static float g_limitSafetyMargin = 400.0f;  // Total safety margin from switches - loaded from config
 static const uint32_t HOMING_TIMEOUT_MS = 90000; // 90 second timeout for finding limits (3x longer for full travel)
@@ -308,11 +309,12 @@ static void updateHomingSequence() {
         case HomingState::FINDING_LEFT:
             g_homingProgress = 10;
             if (g_leftLimitState) {
-                // Found left limit
+                // Found left limit, record position
+                g_detectedLeftLimit = g_stepper->getCurrentPosition();
                 g_stepper->forceStop();
                 g_homingState = HomingState::BACKING_OFF_LEFT;
                 g_homingPhaseStartTime = millis();
-                Serial.println("StepperController: Found left limit");
+                Serial.printf("StepperController: Found left limit at position %d\n", g_detectedLeftLimit);
             } else if (!g_stepper->isRunning()) {
                 // Movement stopped without finding limit - error
                 g_homingState = HomingState::ERROR;
@@ -323,15 +325,16 @@ static void updateHomingSequence() {
         case HomingState::BACKING_OFF_LEFT:
             g_homingProgress = 25;
             if (!g_stepper->isRunning()) {
-                // Back off from limit (80% of safety margin)
-                int32_t backoffSteps = (int32_t)(g_limitSafetyMargin * 0.8f);
-                g_stepper->move(backoffSteps);
+                // Back off from limit by the full safety margin
+                g_stepper->move((int32_t)g_limitSafetyMargin);
             } else if (g_stepper->isRunning() && !g_leftLimitState) {
-                // Finished backing off, set home position
-                int32_t backoffSteps = (int32_t)(g_limitSafetyMargin * 0.8f);
-                g_stepper->setCurrentPosition(backoffSteps);
-                g_currentPosition = backoffSteps;
-                g_minPosition = (int32_t)g_limitSafetyMargin;  // Full safety margin from switch
+                // Finished backing off, set coordinate system
+                // We're now at limitSafetyMargin steps from the switch
+                // Set position so that the switch is at 0
+                g_stepper->setCurrentPosition((int32_t)g_limitSafetyMargin);
+                g_currentPosition = (int32_t)g_limitSafetyMargin;
+                g_detectedLeftLimit = 0;  // Left limit is at position 0
+                g_minPosition = (int32_t)g_limitSafetyMargin;  // Operating minimum matches our current position
                 
                 // Start moving to find right limit - use a much larger distance
                 g_stepper->setSpeedInHz(g_homingSpeed);
@@ -366,13 +369,13 @@ static void updateHomingSequence() {
         case HomingState::BACKING_OFF_RIGHT:
             g_homingProgress = 75;
             if (!g_stepper->isRunning()) {
-                // Back off from limit (80% of safety margin)
-                int32_t backoffSteps = (int32_t)(g_limitSafetyMargin * 0.8f);
-                g_stepper->move(-backoffSteps);
+                // Back off from limit by the full safety margin
+                g_stepper->move(-(int32_t)g_limitSafetyMargin);
             } else if (g_stepper->isRunning() && !g_rightLimitState) {
                 // Finished backing off, set physical operating limits
-                int32_t positionMargin = (int32_t)(g_limitSafetyMargin * 0.2f);
-                g_maxPosition = g_stepper->getCurrentPosition() - positionMargin;
+                // g_detectedRightLimit is where we hit the switch
+                // We want to stay limitSafetyMargin away from it
+                g_maxPosition = g_detectedRightLimit - (int32_t)g_limitSafetyMargin;
                 g_positionLimitsValid = true;
                 
                 // Get configuration
@@ -404,8 +407,10 @@ static void updateHomingSequence() {
                     g_homingState = HomingState::MOVING_TO_CENTER;
                     
                     // Print summary once when transitioning to MOVING_TO_CENTER
-                    Serial.printf("StepperController: Range detected: %d to %d (%d steps), moving to %.1f%%\n", 
-                                 g_minPosition, g_maxPosition, g_maxPosition - g_minPosition, homePercent);
+                    Serial.printf("StepperController: Physical limits: 0 to %d, Operating range: %d to %d (%d steps), margin: %.0f\n", 
+                                 g_detectedRightLimit, g_minPosition, g_maxPosition, 
+                                 g_maxPosition - g_minPosition, g_limitSafetyMargin);
+                    Serial.printf("StepperController: Moving to %.1f%% of range\n", homePercent);
                 } else {
                     // No config, just use center position
                     int32_t homePosition = (g_minPosition + g_maxPosition) / 2;
@@ -563,8 +568,8 @@ static void startHomingSequence() {
     if (g_leftLimitState) {
         Serial.println("StepperController: Already at left limit, backing off");
         g_homingState = HomingState::BACKING_OFF_LEFT;
-        int32_t backoffSteps = (int32_t)(g_limitSafetyMargin * 0.8f);
-        g_stepper->move(backoffSteps * 2); // Back off double since we don't know exact position
+        // Back off by twice the safety margin since we don't know exact position
+        g_stepper->move((int32_t)g_limitSafetyMargin * 2);
     } 
     // Check if we're at right limit (need to move left first)
     else if (g_rightLimitState) {
@@ -1177,6 +1182,16 @@ bool getPositionLimits(int32_t& minPos, int32_t& maxPos) {
     
     minPos = g_minPosition;
     maxPos = g_maxPosition;
+    return true;
+}
+
+bool getDetectedLimits(int32_t& leftLimit, int32_t& rightLimit) {
+    if (!g_positionLimitsValid) {
+        return false;
+    }
+    
+    leftLimit = g_detectedLeftLimit;  // Should be 0 after homing
+    rightLimit = g_detectedRightLimit;
     return true;
 }
 

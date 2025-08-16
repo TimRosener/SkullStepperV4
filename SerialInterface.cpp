@@ -1906,7 +1906,7 @@ namespace SerialInterface {
     Serial.println("                      Jerk limitation (future use)");
     Serial.println("  homingSpeed         Range: 0-10000 steps/sec    Default: 940");
     Serial.println("                      Speed used during homing sequence");
-    Serial.println("  limitSafetyMargin   Range: 50-1000 steps         Default: 400");
+    Serial.println("  limitSafetyMargin   Range: 0-1000 steps          Default: 400");
     Serial.println("                      Distance to stay away from limit switches");
     Serial.println("  homePositionPercent Range: 0-100 %              Default: 50");
     Serial.println("                      Position to return to after homing (% of range)");

@@ -33,7 +33,7 @@ namespace ParamLimits {
     // Homing parameters
     constexpr float MIN_HOMING_SPEED = 10.0f;    // Minimum homing speed
     constexpr float MAX_HOMING_SPEED = 10000.0f; // Maximum homing speed
-    constexpr float MIN_LIMIT_MARGIN = 10.0f;    // Minimum limit safety margin
+    constexpr float MIN_LIMIT_MARGIN = 0.0f;     // Minimum limit safety margin
     constexpr float MAX_LIMIT_MARGIN = 10000.0f; // Maximum limit safety margin
     
     // DMX parameters

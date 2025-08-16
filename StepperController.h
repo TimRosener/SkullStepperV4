@@ -149,12 +149,20 @@ namespace StepperController {
     bool isHomed();
     
     /**
-     * Get detected position limits from homing
+     * Get operating position limits (includes safety margin)
      * @param minPos Returns minimum position (left limit + margin)
      * @param maxPos Returns maximum position (right limit - margin)
      * @return true if limits are valid (homed)
      */
     bool getPositionLimits(int32_t& minPos, int32_t& maxPos);
+    
+    /**
+     * Get actual detected limit switch positions (no margin)
+     * @param leftLimit Returns actual left switch position (0)
+     * @param rightLimit Returns actual right switch position
+     * @return true if limits are valid (homed)
+     */
+    bool getDetectedLimits(int32_t& leftLimit, int32_t& rightLimit);
     
     /**
      * Check limit switch states

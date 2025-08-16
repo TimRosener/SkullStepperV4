@@ -5,6 +5,36 @@ All notable changes to the SkullStepperV4 project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.14] - 2025-02-08
+
+### Fixed
+- **Critical: Limit Safety Margin calculation** - Fixed incorrect application of safety margin
+  - Removed 80% backoff factor; now uses exact configured margin value
+  - Fixed coordinate system reset to properly set left limit at position 0
+  - Corrected right limit calculation to use full margin from detected position
+- **Web Interface Configuration Display** - Fixed missing limit safety margin value
+  - Added limitSafetyMargin to status JSON updates
+  - Removed duplicate HTML elements with same IDs in motion parameters
+  - Consolidated motion parameters into single clean section
+- **Position Tracking** - Improved limit detection and reporting
+  - Added tracking of actual detected limit positions
+  - Separated detected physical limits from operating limits
+  - Enhanced debug output showing physical vs operating ranges
+
+### Changed
+- **Limit Safety Margin Range** - Minimum value changed from 50 to 0 steps
+  - Allows operation right at limit switches if desired
+  - Updated validation, web interface, and documentation
+- **Web Interface Motion Parameters** - Simplified configuration display
+  - Removed duplicate "Key" vs "All" parameter sections
+  - Single unified motion parameters section
+  - Fixed event listeners for all sliders
+
+### Added
+- New `getDetectedLimits()` function to retrieve actual switch positions
+- Enhanced position reporting showing both physical and operating limits
+- Clearer serial debug messages during homing sequence
+
 ## [4.1.13] - 2025-02-08
 
 ### Added

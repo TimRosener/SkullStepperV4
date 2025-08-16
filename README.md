@@ -11,27 +11,41 @@ SkullStepperV4/
 ├── SkullStepperV4.ino          # Main Arduino sketch
 ├── *.h, *.cpp                  # Source files (flat for Arduino IDE compatibility)
 ├── docs/                       # Documentation
+│   ├── user/                   # End-user documentation
+│   │   ├── hardware-setup.md  # Physical setup guide
+│   │   └── troubleshooting.md # Common issues and solutions
+│   ├── developer/              # Developer documentation
+│   │   ├── api-reference.md   # Complete API documentation
+│   │   └── contributing.md    # Development guidelines
 │   ├── guides/                 # User guides and references
 │   │   ├── SerialInterface_Manual.md
 │   │   ├── WebInterface_Guide.md
 │   │   ├── QUICK_REFERENCE.md
 │   │   ├── TESTING_PROTOCOL.md
 │   │   └── PUBLISHING.md
-│   └── design/                 # Architecture and design docs
-│       ├── design_docs.md
-│       ├── DMX_Implementation_Plan.md
-│       └── MOVEHOME_Implementation.md
+│   ├── design/                 # Architecture and design docs
+│   │   ├── design_docs.md
+│   │   ├── DMX_Implementation_Plan.md
+│   │   └── MOVEHOME_Implementation.md
+│   └── prompts/                # AI assistant prompts
 ├── scripts/                    # Utility scripts
-│   ├── check_and_push.sh
-│   ├── preflight_check.sh
-│   └── (other shell scripts)
+│   ├── git/                    # Git-related scripts
+│   ├── build/                  # Build and deployment scripts
+│   └── utils/                  # Utility scripts
 ├── extras/                     # Additional resources
-│   ├── diagnostics/           # Diagnostic tools and analysis
+│   ├── diagnostics/            # Diagnostic tools and analysis
+│   ├── development-notes/      # Development notes and scratch files
 │   └── PROJECT_HEADER_TEMPLATE.txt
+├── .github/                    # GitHub specific files
+│   └── ISSUE_TEMPLATE/         # Issue templates
+│       ├── bug_report.md
+│       └── feature_request.md
 ├── README.md                   # This file
-├── CHANGELOG.md               # Version history
-├── LICENSE                    # MIT License
-└── claude.md                  # AI assistant context
+├── CHANGELOG.md                # Version history
+├── CONTRIBUTING.md             # How to contribute
+├── LICENSE                     # MIT License
+├── .gitignore                  # Git ignore rules
+└── claude.md                   # AI assistant context
 
 Note: Source files remain in root directory to maintain Arduino IDE compatibility.
 ```
@@ -1211,6 +1225,15 @@ Use `PARAMS` command for full parameter details with ranges and defaults.
 - **Configurable Home Position**: Home position is now configurable as a percentage of detected range (0-100%), ensuring it's always within bounds and adapts to mechanical installation
 - **Move to Home Button**: Added convenient "MOVE TO HOME" button in web interface that moves to the configured home position with a single click
 - **Auto-Home Options**: Added checkboxes for "Home on Boot" and "Home on E-Stop" for automatic initialization and recovery
+
+## Quick Links
+
+### 📚 Documentation
+- [Hardware Setup Guide](docs/user/hardware-setup.md) - Physical setup and wiring
+- [Troubleshooting Guide](docs/user/troubleshooting.md) - Common issues and solutions
+- [API Reference](docs/developer/api-reference.md) - Complete API documentation
+- [Contributing Guide](docs/developer/contributing.md) - How to contribute
+- [Quick Reference](docs/guides/QUICK_REFERENCE.md) - Essential commands
 
 ### 🔧 Bug Fixes (v4.1.1)
 
