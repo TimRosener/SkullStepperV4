@@ -91,8 +91,8 @@
 // Motion Limits
 #define MAX_POSITION_STEPS      (TOTAL_STEPS_PER_REV * 2)  // 2 full revolutions max
 #define MIN_POSITION_STEPS      0
-#define DEFAULT_MAX_SPEED       5000 // Steps per second
-#define DEFAULT_ACCELERATION    5000  // Steps per second²
+#define DEFAULT_MAX_SPEED       20000 // Steps per second
+#define DEFAULT_ACCELERATION    20000  // Steps per second²
 
 // Safety Constants
 #define EMERGENCY_STOP_DECEL    2000 // Emergency deceleration (steps/sec²)

@@ -5,6 +5,21 @@ All notable changes to the SkullStepperV4 project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.15] - 2025-02-08
+
+### Changed
+- **Increased Speed and Acceleration Limits**
+  - Maximum speed increased from 20,000 to 30,000 steps/second
+  - Maximum acceleration increased from 20,000 to 30,000 steps/second²
+  - Default speed increased from 5,000 to 20,000 steps/second
+  - Default acceleration increased from 5,000 to 20,000 steps/second²
+- **Improved Homing Logic**
+  - Fixed homing sequence to properly find switch release point
+  - Backs off in small increments (10 steps) until switch disengages
+  - Physical limit set at exact switch release point
+  - Safety margin applied as operating limit from release point
+  - Fixed issue where zero margin would cause homing to hang
+
 ## [4.1.14] - 2025-02-08
 
 ### Fixed

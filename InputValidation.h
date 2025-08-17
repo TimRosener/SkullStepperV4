@@ -18,9 +18,9 @@
 namespace ParamLimits {
     // Motion parameters
     constexpr float MIN_SPEED = 1.0f;           // Minimum speed to prevent stalling
-    constexpr float MAX_SPEED = 20000.0f;       // Maximum safe speed
+    constexpr float MAX_SPEED = 30000.0f;       // Maximum safe speed
     constexpr float MIN_ACCELERATION = 1.0f;    // Minimum acceleration
-    constexpr float MAX_ACCELERATION = 20000.0f; // Maximum safe acceleration
+    constexpr float MAX_ACCELERATION = 30000.0f; // Maximum safe acceleration
     constexpr float MIN_JERK = 0.0f;            // Minimum jerk
     constexpr float MAX_JERK = 50000.0f;        // Maximum jerk
     

@@ -1896,9 +1896,9 @@ namespace SerialInterface {
   bool sendParameterList() {
     Serial.println("\n=== Configurable Parameters ===");
     Serial.println("\nMotion Parameters:");
-    Serial.println("  maxSpeed            Range: 0-10000 steps/sec    Default: 1000");
+    Serial.println("  maxSpeed            Range: 1-30000 steps/sec    Default: 20000");
     Serial.println("                      Current max velocity for movements");
-    Serial.println("  acceleration        Range: 0-20000 steps/sec²   Default: 500");
+    Serial.println("  acceleration        Range: 1-30000 steps/sec²   Default: 20000");
     Serial.println("                      Acceleration/deceleration rate");
     Serial.println("  deceleration        Range: 0-20000 steps/sec²   Default: 500");
     Serial.println("                      (Currently uses same value as acceleration)");

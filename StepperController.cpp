@@ -325,23 +325,25 @@ static void updateHomingSequence() {
         case HomingState::BACKING_OFF_LEFT:
             g_homingProgress = 25;
             if (!g_stepper->isRunning()) {
-                // Back off from limit by the full safety margin
-                g_stepper->move((int32_t)g_limitSafetyMargin);
-            } else if (g_stepper->isRunning() && !g_leftLimitState) {
-                // Finished backing off, set coordinate system
-                // We're now at limitSafetyMargin steps from the switch
-                // Set position so that the switch is at 0
-                g_stepper->setCurrentPosition((int32_t)g_limitSafetyMargin);
-                g_currentPosition = (int32_t)g_limitSafetyMargin;
-                g_detectedLeftLimit = 0;  // Left limit is at position 0
-                g_minPosition = (int32_t)g_limitSafetyMargin;  // Operating minimum matches our current position
-                
-                // Start moving to find right limit - use a much larger distance
-                g_stepper->setSpeedInHz(g_homingSpeed);
-                g_stepper->moveTo(100000); // Move 100k steps - should hit limit before this
-                g_homingState = HomingState::FINDING_RIGHT;
-                g_homingPhaseStartTime = millis();
-                Serial.println("StepperController: Home position set, finding right limit");
+                // Check if we need to continue backing off or if we're done
+                if (g_leftLimitState) {
+                    // Still on limit, back off slowly to find exact release point
+                    g_stepper->move(10);  // Move 10 steps at a time to find release point
+                } else {
+                    // Switch has released - this is our physical limit position
+                    // Set coordinate system with this point as 0
+                    g_stepper->setCurrentPosition(0);
+                    g_currentPosition = 0;
+                    g_detectedLeftLimit = 0;  // Left limit is at position 0
+                    g_minPosition = (int32_t)g_limitSafetyMargin;  // Operating minimum is margin away from switch
+                    
+                    // Start moving to find right limit - use a much larger distance
+                    g_stepper->setSpeedInHz(g_homingSpeed);
+                    g_stepper->moveTo(100000); // Move 100k steps - should hit limit before this
+                    g_homingState = HomingState::FINDING_RIGHT;
+                    g_homingPhaseStartTime = millis();
+                    Serial.println("StepperController: Home position set, finding right limit");
+                }
             }
             break;
             
@@ -369,17 +371,18 @@ static void updateHomingSequence() {
         case HomingState::BACKING_OFF_RIGHT:
             g_homingProgress = 75;
             if (!g_stepper->isRunning()) {
-                // Back off from limit by the full safety margin
-                g_stepper->move(-(int32_t)g_limitSafetyMargin);
-            } else if (g_stepper->isRunning() && !g_rightLimitState) {
-                // Finished backing off, set physical operating limits
-                // g_detectedRightLimit is where we hit the switch
-                // We want to stay limitSafetyMargin away from it
-                g_maxPosition = g_detectedRightLimit - (int32_t)g_limitSafetyMargin;
-                g_positionLimitsValid = true;
-                
-                // Get configuration
-                SystemConfig* config = SystemConfigMgr::getConfig();
+                // Check if we need to continue backing off or if we're done
+                if (g_rightLimitState) {
+                    // Still on limit, back off slowly to find exact release point
+                    g_stepper->move(-10);  // Move 10 steps at a time to find release point
+                } else {
+                    // Switch has released - this is our physical limit position
+                    g_detectedRightLimit = g_stepper->getCurrentPosition();
+                    g_maxPosition = g_detectedRightLimit - (int32_t)g_limitSafetyMargin;
+                    g_positionLimitsValid = true;
+                    
+                    // Get configuration
+                    SystemConfig* config = SystemConfigMgr::getConfig();
                 if (config) {
                     // If user limits are not set or invalid, set them to physical limits
                     bool minLimitUpdated = false;
@@ -420,6 +423,7 @@ static void updateHomingSequence() {
                     
                     Serial.printf("StepperController: Range detected: %d to %d, moving to center\n", 
                                  g_minPosition, g_maxPosition);
+                    }
                 }
             }
             break;
