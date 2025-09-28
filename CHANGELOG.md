@@ -5,6 +5,43 @@ All notable changes to the SkullStepperV4 project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.16] - 2025-09-28
+
+### Added
+- **5V Level Shifter Support**
+  - Added GPIO 10 level shifter enable control (active LOW)
+  - Level shifters enable 5V signaling for CL57Y stepper driver
+  - Automatic initialization during startup sequence
+- **New CL57Y Wiring Configuration**
+  - Updated for PCB-integrated level shifters
+  - CL57Y positive pins (PP+, DIR+, MF+) connected to 5V supply
+  - CL57Y negative pins connected to level shifter outputs
+  - Maintains open-drain compatibility with existing software
+- **Comprehensive Wiring Documentation**
+  - New CL57Y_Wiring_Guide.md with detailed connection instructions
+  - Updated all hardware documentation with new pin assignments
+  - Added troubleshooting section for level shifter configuration
+
+### Changed
+- **GPIO Pin Assignments - BREAKING CHANGE**
+  - STEP: GPIO 7 → GPIO 48
+  - DIR: GPIO 15 → GPIO 47
+  - ENABLE: GPIO 16 → GPIO 21
+  - ALARM: GPIO 8 → GPIO 36
+  - DMX RX: GPIO 4 → GPIO 11
+  - DMX TX: GPIO 6 → GPIO 9
+  - DMX DE/RE: GPIO 5 → GPIO 8
+  - LEFT_LIMIT: GPIO 17 → GPIO 39
+  - RIGHT_LIMIT: GPIO 18 → GPIO 38
+
+### Fixed
+- **GPIO 9 Syntax Error** - Removed invalid octal constant "09" → "9"
+- **Documentation Updates** - All pin references updated across codebase
+
+### Documented
+- **DMX Configuration Issue** - Added workaround for DMX channel changes requiring reboot
+- **Known Issues** - Updated troubleshooting guides with DMX and level shifter information
+
 ## [4.1.15] - 2025-02-08
 
 ### Changed

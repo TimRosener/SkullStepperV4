@@ -852,18 +852,21 @@ Position Tracking          ALARM Signal
 🔄 **Phase 7**: SafetyMonitor module - OPTIONAL (safety already integrated)
 🔄 **Phase 8**: Advanced features - FUTURE
 
-**Current State (2025-02-08)**: 
+**Current State (2025-09-28)**:
 - Production-ready motion control system with professional-quality features
+- **Hardware Update**: New pin configuration with 5V level shifter integration
+- **Pin Assignments**: Updated GPIO mapping (STEP: 48, DIR: 47, ENABLE: 21, ALARM: 36)
+- **Level Shifters**: GPIO 10 controlled 5V level shifters for CL57Y compatibility
+- **CL57Y Wiring**: Optimized for PCB design with negative pin control topology
 - Auto-range homing with configurable speed
 - Robust limit switch protection with industrial-standard fault latching
 - Full configuration persistence across power cycles
 - Comprehensive command interface supporting both human and JSON formats
 - Complete web interface with real-time control and monitoring
 - All motion parameters user-configurable via serial or web
-- **Fixed**: Web interface stress test now runs continuously (matches serial interface)
-- **New**: Configurable home position as percentage of range (survives reboot)
 - **DMX Progress**: Core infrastructure implemented with ESP32S3DMX library
-- Ready for production deployment!
+- **Known Issue**: DMX configuration changes require reboot or DMX-specific commands
+- Ready for hardware testing with new level shifter configuration!
 
 **Recent Development (2025-01-31):**
 
@@ -1170,7 +1173,7 @@ attachInterrupt(digitalPinToInterrupt(RIGHT_LIMIT_PIN), rightLimitISR, FALLING);
 
 Use `PARAMS` command for full parameter details with ranges and defaults.
 
-## Current Status Summary (v4.1.13 - 2025-02-08)
+## Current Status Summary (v4.1.15 - 2025-09-28)
 
 ### 🏆 Production-Ready System
 
