@@ -16,18 +16,27 @@
 // ============================================================================
 
 // ----------------------------------------------------------------------------
-// CL57Y Stepper Driver Pins
+// CL57Y Stepper Driver Pins - Level Shifter Configuration
 // ----------------------------------------------------------------------------
-#define STEPPER_STEP_PIN        48    // GPIO 7 → CL57Y PP+ (Open-drain + 1.8kΩ to +5V)
-#define STEPPER_DIR_PIN         47   // GPIO 15 → CL57Y DIR+ (Open-drain + 1.8kΩ to +5V)
-#define STEPPER_ENABLE_PIN      21   // GPIO 16 → CL57Y MF+ (Open-drain + 1.8kΩ to +5V)
-#define STEPPER_ALARM_PIN       36    // GPIO 8 ← CL57Y ALARM+ (Input with pull-up) ✓ CONFIRMED
+#define STEPPER_STEP_PIN        48    // GPIO 48 → Level Shifter → CL57Y PP- (Open-drain, active LOW)
+#define STEPPER_DIR_PIN         47    // GPIO 47 → Level Shifter → CL57Y DIR- (Open-drain, active LOW)
+#define STEPPER_ENABLE_PIN      21    // GPIO 21 → Level Shifter → CL57Y MF- (Open-drain, active LOW)
+#define STEPPER_ALARM_PIN       36    // GPIO 36 ← CL57Y ALARM+ (Input with pull-up) ✓ CONFIRMED
+#define ENABLE_OUTPUT_PIN       10    // GPIO 10 - Enable 5V level shifters for servo outputs (active LOW)
+
+// CL57Y Wiring Configuration:
+// CL57Y PP+ → 5V supply (via level shifter or direct)
+// CL57Y PP- → Level Shifter HV Output (ESP32 GPIO 48 → Level Shifter)
+// CL57Y DIR+ → 5V supply (via level shifter or direct)
+// CL57Y DIR- → Level Shifter HV Output (ESP32 GPIO 47 → Level Shifter)
+// CL57Y MF+ → 5V supply (via level shifter or direct)
+// CL57Y MF- → Level Shifter HV Output (ESP32 GPIO 21 → Level Shifter)
 
 // ----------------------------------------------------------------------------
 // DMX Interface (MAX485) Pins
 // ----------------------------------------------------------------------------
 #define DMX_RO_PIN              11    // GPIO 6 (UART2 RX) - SWAPPED
-#define DMX_DI_PIN              09    // GPIO 4 (UART2 TX) - SWAPPED
+#define DMX_DI_PIN              9    // GPIO 4 (UART2 TX) - SWAPPED
 #define DMX_DE_RE_PIN           8    // GPIO 5 (Direction control - DE/RE tied together)
 
 // ----------------------------------------------------------------------------

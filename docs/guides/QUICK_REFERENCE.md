@@ -74,6 +74,11 @@
 - Try different browser
 - Check http://192.168.4.1
 
+### DMX Channel Changes Don't Work
+- Use `DMX CHANNEL 10` instead of `CONFIG SET dmxStartChannel 10`
+- Or restart system after CONFIG changes
+- Known issue - will be fixed in future version
+
 ## Parameters
 
 | Parameter | Range | Default | Unit |

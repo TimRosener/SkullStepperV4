@@ -64,15 +64,17 @@ Key Source Files:
 
 ### Hardware Configuration
 - **MCU**: ESP32-S3 (dual-core)
-- **Stepper Driver**: CL57Y closed-loop driver
-- **Control Pins**:
-  - STEP: GPIO 48 (Open-drain)
-  - DIR: GPIO 47 (Open-drain)
-  - ENABLE: GPIO 21 (Open-drain, HIGH = Enabled)
-  - ALARM: GPIO 36 (Input, position error from driver)
-  - LEFT_LIMIT: GPIO 39 (Active low)
-  - RIGHT_LIMIT: GPIO 38 (Active low)
+- **Stepper Driver**: CL57Y closed-loop driver with 5V level shifters
+- **Level Shifter Enable**: GPIO 10 (Active LOW - enables 5V level shifters)
+- **Control Pins** (via Level Shifters):
+  - STEP: GPIO 48 → Level Shifter → CL57Y PP- (Open-drain, active LOW)
+  - DIR: GPIO 47 → Level Shifter → CL57Y DIR- (Open-drain, active LOW)
+  - ENABLE: GPIO 21 → Level Shifter → CL57Y MF- (Open-drain, active LOW)
+  - ALARM: GPIO 36 ← CL57Y ALARM+ (Input, position error from driver)
+  - LEFT_LIMIT: GPIO 39 (Active low with internal pull-up)
+  - RIGHT_LIMIT: GPIO 38 (Active low with internal pull-up)
 - **DMX**: UART2 on GPIO 11 (RX), GPIO 9 (TX), GPIO 8 (DE/RE)
+- **CL57Y Wiring**: Positive pins (PP+, DIR+, MF+) connected to 5V, negative pins connected to level shifter outputs
 
 ### Core Assignment
 - **Core 0**: Real-time operations (StepperController, DMXReceiver, SafetyMonitor)

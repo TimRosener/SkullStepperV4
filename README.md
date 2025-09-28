@@ -511,11 +511,15 @@ Position Tracking          ALARM Signal
 
 ## Hardware Configuration
 
-### **CL57Y Closed-Loop Stepper Control:**
-- **STEP**: GPIO 48 → CL57Y PP+ (Open-drain + 1.8kΩ to +5V) - Handled by ODStepper
-- **DIR**: GPIO 47 → CL57Y DIR+ (Open-drain + 1.8kΩ to +5V) - Handled by ODStepper
-- **ENABLE**: GPIO 21 → CL57Y MF+ (Open-drain + 1.8kΩ to +5V) - HIGH = Enabled - Handled by ODStepper
+### **CL57Y Closed-Loop Stepper Control (Level Shifter Configuration):**
+- **STEP**: GPIO 48 → Level Shifter → CL57Y PP- (Open-drain, active LOW) - Handled by ODStepper
+- **DIR**: GPIO 47 → Level Shifter → CL57Y DIR- (Open-drain, active LOW) - Handled by ODStepper
+- **ENABLE**: GPIO 21 → Level Shifter → CL57Y MF- (Open-drain, active LOW) - Handled by ODStepper
 - **ALARM**: GPIO 36 ← CL57Y ALARM+ (Input with pull-up) - Position following error
+- **LEVEL_ENABLE**: GPIO 10 → Level Shifter Enable (active LOW) - Enables 5V level shifters
+
+**CL57Y Positive Pins:** PP+, DIR+, MF+ connected to 5V supply
+**CL57Y Negative Pins:** PP-, DIR-, MF- connected to level shifter outputs
 
 ### **Motion Control with ODStepper**
 - **Library**: ODStepper (wrapper for FastAccelStepper with automatic open-drain)
@@ -527,6 +531,13 @@ Position Tracking          ALARM Signal
 - **Interrupt Safety**: Minimal ISRs to avoid timing conflicts
 
 ### **ESP32-S3 Pin Assignments**
+**CL57Y Stepper Driver:**
+- STEP: GPIO 48 → Level Shifter → CL57Y PP-
+- DIR: GPIO 47 → Level Shifter → CL57Y DIR-
+- ENABLE: GPIO 21 → Level Shifter → CL57Y MF-
+- ALARM: GPIO 36 ← CL57Y ALARM+ (Input)
+- LEVEL_ENABLE: GPIO 10 → Enable 5V level shifters (active LOW)
+
 **DMX Interface (MAX485):**
 - RO: GPIO 11 (UART2 RX) ✅ Initialized
 - DI: GPIO 9 (UART2 TX) ✅ Initialized

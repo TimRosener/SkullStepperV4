@@ -12,6 +12,7 @@
 // ============================================================================
 
 #include "GlobalInterface.h"
+#include "HardwareConfig.h"  // Pin definitions and hardware constants
 #include "StepperController.h"
 #include "SerialInterface.h"
 #include "SystemConfig.h"
@@ -62,7 +63,15 @@ void setup() {
   esp_task_wdt_init(&wdt_config);  // Initialize watchdog with config
   esp_task_wdt_add(NULL);           // Add current task (setup/loop) to watchdog
   Serial.println("✓ Watchdog timer active");
-  
+
+  // ========================================================================
+  // Initialize Hardware - Enable 5V Level Shifters
+  // ========================================================================
+  Serial.println("Initializing hardware pins...");
+  pinMode(ENABLE_OUTPUT_PIN, OUTPUT);
+  digitalWrite(ENABLE_OUTPUT_PIN, LOW);   // Enable 5V level shifters for servo outputs (active LOW)
+  Serial.println("✓ 5V level shifters enabled (GPIO 10 = LOW)");
+
   // ========================================================================
   // STEP 1: Initialize Thread-Safe Global Infrastructure
   // ========================================================================
