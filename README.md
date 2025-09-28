@@ -512,10 +512,10 @@ Position Tracking          ALARM Signal
 ## Hardware Configuration
 
 ### **CL57Y Closed-Loop Stepper Control:**
-- **STEP**: GPIO 7 → CL57Y PP+ (Open-drain + 1.8kΩ to +5V) - Handled by ODStepper
-- **DIR**: GPIO 15 → CL57Y DIR+ (Open-drain + 1.8kΩ to +5V) - Handled by ODStepper
-- **ENABLE**: GPIO 16 → CL57Y MF+ (Open-drain + 1.8kΩ to +5V) - HIGH = Enabled - Handled by ODStepper
-- **ALARM**: GPIO 8 ← CL57Y ALARM+ (Input with pull-up) - Position following error
+- **STEP**: GPIO 48 → CL57Y PP+ (Open-drain + 1.8kΩ to +5V) - Handled by ODStepper
+- **DIR**: GPIO 47 → CL57Y DIR+ (Open-drain + 1.8kΩ to +5V) - Handled by ODStepper
+- **ENABLE**: GPIO 21 → CL57Y MF+ (Open-drain + 1.8kΩ to +5V) - HIGH = Enabled - Handled by ODStepper
+- **ALARM**: GPIO 36 ← CL57Y ALARM+ (Input with pull-up) - Position following error
 
 ### **Motion Control with ODStepper**
 - **Library**: ODStepper (wrapper for FastAccelStepper with automatic open-drain)
@@ -528,13 +528,13 @@ Position Tracking          ALARM Signal
 
 ### **ESP32-S3 Pin Assignments**
 **DMX Interface (MAX485):**
-- RO: GPIO 4 (UART2 RX) ✅ Initialized
-- DI: GPIO 6 (UART2 TX) ✅ Initialized
-- DE/RE: GPIO 5 (Direction control) ✅ Configured
+- RO: GPIO 11 (UART2 RX) ✅ Initialized
+- DI: GPIO 9 (UART2 TX) ✅ Initialized
+- DE/RE: GPIO 8 (Direction control) ✅ Configured
 
 **Limit Switches:**
-- LEFT_LIMIT: GPIO 17 (Active low with pull-up) ✅ Tested
-- RIGHT_LIMIT: GPIO 18 (Active low with pull-up) ✅ Tested
+- LEFT_LIMIT: GPIO 39 (Active low with pull-up) ✅ Tested
+- RIGHT_LIMIT: GPIO 38 (Active low with pull-up) ✅ Tested
 
 ## Key Design Principles
 

@@ -18,23 +18,23 @@
 // ----------------------------------------------------------------------------
 // CL57Y Stepper Driver Pins
 // ----------------------------------------------------------------------------
-#define STEPPER_STEP_PIN        7    // GPIO 7 → CL57Y PP+ (Open-drain + 1.8kΩ to +5V)
-#define STEPPER_DIR_PIN         15   // GPIO 15 → CL57Y DIR+ (Open-drain + 1.8kΩ to +5V)
-#define STEPPER_ENABLE_PIN      16   // GPIO 16 → CL57Y MF+ (Open-drain + 1.8kΩ to +5V)
-#define STEPPER_ALARM_PIN       8    // GPIO 8 ← CL57Y ALARM+ (Input with pull-up) ✓ CONFIRMED
+#define STEPPER_STEP_PIN        48    // GPIO 7 → CL57Y PP+ (Open-drain + 1.8kΩ to +5V)
+#define STEPPER_DIR_PIN         47   // GPIO 15 → CL57Y DIR+ (Open-drain + 1.8kΩ to +5V)
+#define STEPPER_ENABLE_PIN      21   // GPIO 16 → CL57Y MF+ (Open-drain + 1.8kΩ to +5V)
+#define STEPPER_ALARM_PIN       36    // GPIO 8 ← CL57Y ALARM+ (Input with pull-up) ✓ CONFIRMED
 
 // ----------------------------------------------------------------------------
 // DMX Interface (MAX485) Pins
 // ----------------------------------------------------------------------------
-#define DMX_RO_PIN              6    // GPIO 6 (UART2 RX) - SWAPPED
-#define DMX_DI_PIN              4    // GPIO 4 (UART2 TX) - SWAPPED
-#define DMX_DE_RE_PIN           5    // GPIO 5 (Direction control - DE/RE tied together)
+#define DMX_RO_PIN              11    // GPIO 6 (UART2 RX) - SWAPPED
+#define DMX_DI_PIN              09    // GPIO 4 (UART2 TX) - SWAPPED
+#define DMX_DE_RE_PIN           8    // GPIO 5 (Direction control - DE/RE tied together)
 
 // ----------------------------------------------------------------------------
 // Limit Switch Pins
 // ----------------------------------------------------------------------------
-#define LEFT_LIMIT_PIN          17   // GPIO 17 (Active low with pull-up) ✓ CONFIRMED
-#define RIGHT_LIMIT_PIN         18   // GPIO 18 (Active low with pull-up) ✓ CONFIRMED
+#define LEFT_LIMIT_PIN          39   // GPIO 17 (Active low with pull-up) ✓ CONFIRMED
+#define RIGHT_LIMIT_PIN         38   // GPIO 18 (Active low with pull-up) ✓ CONFIRMED
 
 // ----------------------------------------------------------------------------
 // Limit Switch Noise Filtering Recommendations

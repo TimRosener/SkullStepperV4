@@ -66,13 +66,13 @@ Key Source Files:
 - **MCU**: ESP32-S3 (dual-core)
 - **Stepper Driver**: CL57Y closed-loop driver
 - **Control Pins**:
-  - STEP: GPIO 7 (Open-drain)
-  - DIR: GPIO 15 (Open-drain)
-  - ENABLE: GPIO 16 (Open-drain, HIGH = Enabled)
-  - ALARM: GPIO 8 (Input, position error from driver)
-  - LEFT_LIMIT: GPIO 17 (Active low)
-  - RIGHT_LIMIT: GPIO 18 (Active low)
-- **DMX**: UART2 on GPIO 4 (RX)
+  - STEP: GPIO 48 (Open-drain)
+  - DIR: GPIO 47 (Open-drain)
+  - ENABLE: GPIO 21 (Open-drain, HIGH = Enabled)
+  - ALARM: GPIO 36 (Input, position error from driver)
+  - LEFT_LIMIT: GPIO 39 (Active low)
+  - RIGHT_LIMIT: GPIO 38 (Active low)
+- **DMX**: UART2 on GPIO 11 (RX), GPIO 9 (TX), GPIO 8 (DE/RE)
 
 ### Core Assignment
 - **Core 0**: Real-time operations (StepperController, DMXReceiver, SafetyMonitor)
