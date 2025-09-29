@@ -44,34 +44,27 @@ TEST        # Run motion test
 - Verify ESP32-S3 board package installed
 - Check all required libraries installed
 
-### 2. DMX Configuration Changes Don't Take Effect
+### 2. ✅ DMX Configuration Changes (RESOLVED in v4.1.17)
 
-#### Symptoms
-- Changed `dmxStartChannel` via `CONFIG SET` command
-- DMX status screen still shows old channel number
-- DMX control not responding to new channel
+#### Previous Issue
+~~DMX configuration changes via `CONFIG SET dmxStartChannel` didn't take effect until reboot.~~
 
-#### Root Cause
-The DMXReceiver module caches the channel configuration and doesn't automatically detect config changes.
-
-#### Solutions
-
-**Immediate Workaround:**
-Use DMX-specific command instead of CONFIG SET:
+#### Current Behavior (v4.1.17+)
+Both methods now work immediately without restart:
 ```bash
-# Instead of: CONFIG SET dmxStartChannel 10
-# Use:
-DMX CHANNEL 10
+# Serial command method
+CONFIG SET dmxStartChannel 30
+
+# Direct DMX command method
+DMX CHANNEL 30
+
+# Web interface method
+# Changes in web config also take effect immediately
 ```
 
-**Alternative Solution:**
-Restart the system after CONFIG changes:
-```bash
-CONFIG SET dmxStartChannel 10
-# Power cycle or reset ESP32
-```
+**Valid Range:** 1-508 (5 consecutive channels required)
 
-**Note:** This is a known issue that will be fixed in a future version.
+**Note:** Issue has been fixed - both serial and web interface updates now sync with the running DMXReceiver module instantly.
 
 ### 3. Motor Won't Move
 

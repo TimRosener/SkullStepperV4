@@ -1,7 +1,7 @@
-# Next Steps - SkullStepperV4 v4.1.16
+# Next Steps - SkullStepperV4 v4.1.17
 
-## Current Status (2025-09-28)
-The SkullStepperV4 system has been successfully updated with new hardware configuration including 5V level shifters and updated GPIO pin assignments. All documentation has been updated and the system is ready for hardware testing.
+## Current Status (2025-09-29)
+The SkullStepperV4 system is now fully operational with new hardware configuration (5V level shifters, updated GPIO pins) and DMX control fully tested and working. The DMX configuration sync issue has been resolved and all motion control features are verified.
 
 ## Immediate Next Steps
 
@@ -19,10 +19,9 @@ The SkullStepperV4 system has been successfully updated with new hardware config
 
 ### 3. Known Issues to Address
 
-#### DMX Configuration Issue (High Priority)
-**Problem**: DMX configuration changes via `CONFIG SET dmxStartChannel` don't take effect until reboot
-**Current Workaround**: Use `DMX CHANNEL 10` command instead
-**Fix Required**: Make `CONFIG SET dmxStartChannel` call `DMXReceiver::setBaseChannel()` to sync internal state
+#### ✅ DMX Configuration Issue - RESOLVED (v4.1.17)
+~~**Problem**: DMX configuration changes via `CONFIG SET dmxStartChannel` don't take effect until reboot~~
+**Status**: **FIXED** - Both `CONFIG SET dmxStartChannel` and web interface now update the running system immediately
 
 #### Potential Future Improvements
 - **Live DMX parameter updates** - Make dmxScale and dmxOffset parameters take effect immediately
@@ -49,24 +48,24 @@ TEST                      # Run automated range test
 
 #### DMX Testing
 ```bash
-# Test DMX channel configuration
-DMX CHANNEL 1             # Use direct command (works immediately)
-CONFIG SET dmxStartChannel 1  # Use CONFIG command (requires reboot)
-# Verify both methods work as expected
+# Test DMX channel configuration - both methods work immediately (v4.1.17+)
+DMX CHANNEL 30            # Direct command
+CONFIG SET dmxStartChannel 30  # Config command - now takes effect immediately
+# Both methods update the running system without reboot
 ```
 
 ### 5. Development Priorities
 
-#### Immediate (This Session)
+#### Completed (v4.1.17)
 - ✅ Hardware configuration complete
 - ✅ Documentation updated
 - ✅ Code compiled and uploaded
-- ⏳ **Hardware testing needed**
+- ✅ **DMX configuration sync issue fixed**
+- ✅ **DMX control tested and working**
 
 #### Short Term (Next Development Session)
-- **Fix DMX configuration sync issue**
-- **Validate oscilloscope measurements**
-- **Complete system integration testing**
+- **Validate oscilloscope measurements** (optional)
+- **Complete advanced DMX features** (16-bit mode testing)
 - **Performance optimization if needed**
 
 #### Medium Term
@@ -106,18 +105,18 @@ CONFIG SET dmxStartChannel 1  # Use CONFIG command (requires reboot)
 - [ ] Limit switches trigger correctly on GPIO 39/38
 
 ### Software Validation ✅
-- [ ] All motion commands work (HOME, MOVE, STOP, TEST)
-- [ ] Web interface fully functional
-- [ ] Configuration persistence working
-- [ ] DMX communication active on new GPIO pins
+- [x] All motion commands work (HOME, MOVE, STOP, TEST)
+- [x] Web interface fully functional
+- [x] Configuration persistence working
+- [x] DMX communication active on new GPIO pins
 
-### Issue Resolution 🔧
-- [ ] DMX configuration sync issue diagnosed
-- [ ] Fix implemented and tested
-- [ ] Documentation updated with resolution
+### Issue Resolution ✅
+- [x] DMX configuration sync issue diagnosed
+- [x] Fix implemented and tested
+- [x] Documentation updated with resolution
 
-Once these criteria are met, the system will be ready for production deployment with the new hardware configuration.
+The system is now ready for production deployment with the new hardware configuration and fully functional DMX control.
 
 ---
-*Updated: 2025-09-28*
-*SkullStepperV4 v4.1.16 - Hardware Update Complete*
+*Updated: 2025-09-29*
+*SkullStepperV4 v4.1.17 - DMX Configuration Fix Complete*

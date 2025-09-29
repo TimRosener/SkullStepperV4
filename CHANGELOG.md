@@ -5,6 +5,23 @@ All notable changes to the SkullStepperV4 project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.17] - 2025-09-29
+
+### Fixed
+- **DMX Configuration Sync Issue** - `CONFIG SET dmxStartChannel` now updates the running DMXReceiver module immediately
+  - SerialInterface: CONFIG SET command now calls `DMXReceiver::setBaseChannel()` after updating config
+  - WebInterface: Web config handler now calls `DMXReceiver::setBaseChannel()` after updating dmxStartChannel
+  - Changes take effect immediately without requiring system reboot
+  - Added validation for 1-508 channel range (5 consecutive channels required)
+  - Added informative output showing monitored channel range
+- **DMX Channel Validation** - Updated range checks from 1-512 to 1-508 to ensure room for 5-channel operation
+
+### Tested
+- **DMX Control Verified** - Complete DMX motion control tested and working correctly
+  - Channel configuration updates immediately via both serial and web interfaces
+  - Position, speed, acceleration, and mode channels all functioning correctly
+  - Mode thresholds: 1-100 STOP, 101-254 CONTROL, 255 HOME
+
 ## [4.1.16] - 2025-09-28
 
 ### Added

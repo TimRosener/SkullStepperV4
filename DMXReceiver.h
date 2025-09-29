@@ -247,6 +247,12 @@ namespace DMXReceiver {
    * @return TaskHandle_t or nullptr if not initialized
    */
   TaskHandle_t getTaskHandle();
+
+  /**
+   * Diagnostic function to test direct channel reading
+   * Tests reading channels 30-34 directly to verify library indexing
+   */
+  void testDirectChannelReading();
 }
 
 #endif // DMXRECEIVER_H

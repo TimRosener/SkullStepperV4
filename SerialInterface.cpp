@@ -1091,8 +1091,17 @@ namespace SerialInterface {
         }
         return true;
       }
+      else if (params == "INDEXTEST") {
+        Serial.println("\n=== DMX Library Indexing Test ===");
+        Serial.println("This test will help verify whether the ESP32S3DMX library uses 0-based or 1-based indexing.");
+        Serial.println("Make sure your DMX controller is transmitting NON-ZERO values on channels 30-34.");
+        Serial.println();
+        DMXReceiver::testDirectChannelReading();
+        Serial.println("================\n");
+        return true;
+      }
       else {
-        sendError("DMX commands: STATUS, MONITOR, TEST, DEBUG, SCAN, CHANNEL <n>");
+        sendError("DMX commands: STATUS, MONITOR, TEST, DEBUG, SCAN, CHANNEL <n>, INDEXTEST");
         return false;
       }
     }
@@ -1329,18 +1338,25 @@ namespace SerialInterface {
     }
     else if (param == "dmxstartchannel") {
       int32_t channel;
-      if (!parseInteger(value, channel) || channel < 1 || channel > 512) {
-        sendError("DMX start channel must be 1-512");
+      if (!parseInteger(value, channel) || channel < 1 || channel > 508) {
+        sendError("DMX start channel must be 1-508 (need 5 consecutive channels)");
         return false;
       }
       sendDebug("Setting DMX start channel");
       if (SystemConfigMgr::setDMXConfig(channel, config->dmxScale, config->dmxOffset)) {
-        if (SystemConfigMgr::commitChanges()) {
-          sendInfo("DMX start channel updated successfully");
-          sendOK();
-          return true;
+        // Also update the running DMXReceiver module immediately
+        if (DMXReceiver::setBaseChannel(channel)) {
+          if (SystemConfigMgr::commitChanges()) {
+            sendInfo("DMX start channel updated successfully");
+            Serial.printf("Now monitoring DMX channels %d-%d\n", channel, channel + 4);
+            sendOK();
+            return true;
+          } else {
+            sendError("Failed to save DMX start channel to flash");
+            return false;
+          }
         } else {
-          sendError("Failed to save DMX start channel to flash");
+          sendError("Failed to update DMX receiver base channel");
           return false;
         }
       } else {
@@ -1527,8 +1543,17 @@ namespace SerialInterface {
     // Process other configuration changes
     if (setObj.containsKey("dmxStartChannel")) {
       uint16_t channel = setObj["dmxStartChannel"];
+      if (channel < 1 || channel > 508) {
+        Serial.println("{\"status\":\"error\",\"message\":\"DMX start channel must be 1-508 (need 5 consecutive channels)\"}");
+        return false;
+      }
       if (!SystemConfigMgr::setDMXConfig(channel, config->dmxScale, config->dmxOffset)) {
         Serial.println("{\"status\":\"error\",\"message\":\"Invalid DMX start channel\"}");
+        return false;
+      }
+      // Also update the running DMXReceiver module immediately
+      if (!DMXReceiver::setBaseChannel(channel)) {
+        Serial.println("{\"status\":\"error\",\"message\":\"Failed to update DMX receiver base channel\"}");
         return false;
       }
       configChanged = true;

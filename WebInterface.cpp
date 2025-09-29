@@ -94,26 +94,26 @@ String WebInterface::getIndexHTML() {
                         <span id="dmxOffset" class="value">--</span>
                     </div>
                     <div class="status-item">
-                        <label>Ch1 (Position):</label>
+                        <label id="dmxCh1Label">Ch1 (Position):</label>
                         <span id="dmxCh1" class="value">--</span>
                         <span id="dmxPos" class="calc-text">--</span>
                     </div>
                     <div class="status-item">
-                        <label>Ch2 (Fine):</label>
+                        <label id="dmxCh2Label">Ch2 (Fine):</label>
                         <span id="dmxCh2" class="value">--</span>
                     </div>
                     <div class="status-item">
-                        <label>Ch3 (Acceleration):</label>
+                        <label id="dmxCh3Label">Ch3 (Acceleration):</label>
                         <span id="dmxCh3" class="value">--</span>
                         <span id="dmxAccel" class="calc-text">--</span>
                     </div>
                     <div class="status-item">
-                        <label>Ch4 (Speed):</label>
+                        <label id="dmxCh4Label">Ch4 (Speed):</label>
                         <span id="dmxCh4" class="value">--</span>
                         <span id="dmxSpeed" class="calc-text">--</span>
                     </div>
                     <div class="status-item">
-                        <label>Ch5 (Mode):</label>
+                        <label id="dmxCh5Label">Ch5 (Mode):</label>
                         <span id="dmxCh5" class="value">--</span>
                         <span id="dmxMode" class="mode-text">--</span>
                     </div>
@@ -1000,7 +1000,15 @@ function updateUI(data) {
         dmxActiveEl.style.color = data.dmx.active ? 'var(--success-color)' : 'var(--text-dim)';
         
         document.getElementById('dmxOffset').textContent = data.dmx.offset || '0';
-        
+
+        // Update channel labels with actual DMX channel numbers
+        const baseChannel = data.dmx.offset || 1;
+        document.getElementById('dmxCh1Label').textContent = `Ch${baseChannel} (Position):`;
+        document.getElementById('dmxCh2Label').textContent = `Ch${baseChannel + 1} (Fine):`;
+        document.getElementById('dmxCh3Label').textContent = `Ch${baseChannel + 2} (Acceleration):`;
+        document.getElementById('dmxCh4Label').textContent = `Ch${baseChannel + 3} (Speed):`;
+        document.getElementById('dmxCh5Label').textContent = `Ch${baseChannel + 4} (Mode):`;
+
         // Update channel values
         if (data.dmx.channels) {
             // Channel 1 & 2: Position (with calculations if we have position limits)
@@ -2869,10 +2877,19 @@ bool WebInterface::updateConfiguration(const JsonDocument& params) {
     
     if (params.containsKey("dmxChannel")) {
         int32_t channel = params["dmxChannel"];
+        // Validate that we have room for 5 consecutive channels
+        if (channel < 1 || channel > 508) {
+            throw std::invalid_argument("dmxChannel must be 1-508 (need 5 consecutive channels)");
+        }
         InputValidation::validateInt32(channel, ParamLimits::MIN_DMX_CHANNEL,
                                       ParamLimits::MAX_DMX_CHANNEL, "dmxChannel");
         config->dmxStartChannel = channel;
-        Serial.printf("[WebInterface] Setting dmxChannel to: %d\n", config->dmxStartChannel);
+        // Also update the running DMXReceiver module immediately
+        if (!DMXReceiver::setBaseChannel(channel)) {
+            throw std::runtime_error("Failed to update DMX receiver base channel");
+        }
+        Serial.printf("[WebInterface] Setting dmxChannel to: %d (channels %d-%d)\n",
+                     config->dmxStartChannel, channel, channel + 4);
     }
     
     if (params.containsKey("dmxTimeout")) {

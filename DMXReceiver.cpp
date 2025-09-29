@@ -474,16 +474,34 @@ namespace DMXReceiver {
     // Create temporary buffer for reading
     uint8_t tempBuffer[NUM_CHANNELS];
     
-    // Use the efficient readChannels method to read our 5 channels at once
-    uint16_t channelsRead = dmx.readChannels(tempBuffer, baseChannel, NUM_CHANNELS);
-    
-    // Check if we got all channels
-    if (channelsRead != NUM_CHANNELS) {
-      // Partial read - might indicate a short DMX universe
-      Serial.printf("[DMX] Warning: Only read %d of %d channels\n", channelsRead, NUM_CHANNELS);
-      for (uint16_t i = channelsRead; i < NUM_CHANNELS; i++) {
-        tempBuffer[i] = 0;  // Clear unread channels
-      }
+    // Read each channel individually using 0-based indexing for ESP32S3DMX library
+    // ESP32S3DMX library uses 0-based indexing (0-511) while DMX protocol uses 1-based (1-512)
+    // So we subtract 1 from baseChannel to convert from DMX channel numbers to array indices
+
+    // DEBUG: Show exactly what channels we're reading
+    static uint32_t lastDebugTime = 0;
+    uint32_t currentTime = millis();
+    bool showDebug = (currentTime - lastDebugTime >= 5000);  // Every 5 seconds
+
+    if (showDebug) {
+      Serial.printf("[DMX DEBUG] baseChannel=%d, Reading array indices: [%d,%d,%d,%d,%d] (DMX channels [%d,%d,%d,%d,%d])\n",
+                   baseChannel,
+                   baseChannel - 1 + 0, baseChannel - 1 + 1, baseChannel - 1 + 2, baseChannel - 1 + 3, baseChannel - 1 + 4,
+                   baseChannel, baseChannel + 1, baseChannel + 2, baseChannel + 3, baseChannel + 4);
+      lastDebugTime = currentTime;
+    }
+
+    tempBuffer[0] = dmx.read(baseChannel - 1 + 0);  // Position MSB
+    tempBuffer[1] = dmx.read(baseChannel - 1 + 1);  // Position LSB
+    tempBuffer[2] = dmx.read(baseChannel - 1 + 2);  // Acceleration
+    tempBuffer[3] = dmx.read(baseChannel - 1 + 3);  // Speed
+    tempBuffer[4] = dmx.read(baseChannel - 1 + 4);  // Mode
+    uint16_t channelsRead = NUM_CHANNELS;  // All channels successfully read
+
+    // DEBUG: Show the actual values we read
+    if (showDebug) {
+      Serial.printf("[DMX DEBUG] Read values: [%d,%d,%d,%d,%d]\n",
+                   tempBuffer[0], tempBuffer[1], tempBuffer[2], tempBuffer[3], tempBuffer[4]);
     }
     
     // Validate data before updating cache
@@ -721,8 +739,12 @@ namespace DMXReceiver {
     
     // Load base channel from config
     SAFE_READ_CONFIG(dmxStartChannel, baseChannel);
+    Serial.printf("[DMX DEBUG] Loaded dmxStartChannel from config: %d\n", baseChannel);
     if (baseChannel < 1 || baseChannel > 508) {  // 508 because we need 5 channels
+      Serial.printf("[DMX DEBUG] Invalid baseChannel %d, defaulting to 1\n", baseChannel);
       baseChannel = 1;  // Default to channel 1
+    } else {
+      Serial.printf("[DMX DEBUG] Using baseChannel: %d (channels %d-%d)\n", baseChannel, baseChannel, baseChannel + 4);
     }
     
     // Load timeout from config
@@ -771,7 +793,8 @@ namespace DMXReceiver {
     }
     
     // Use the library's read method for individual channel access
-    return dmx.read(channel);
+    // Convert from 1-based DMX channel to 0-based array index
+    return dmx.read(channel - 1);
   }
   
   uint32_t getLastUpdateTime() {
@@ -973,5 +996,29 @@ namespace DMXReceiver {
    */
   TaskHandle_t getTaskHandle() {
     return dmxTaskHandle;
+  }
+
+  /**
+   * Diagnostic function to test direct channel reading
+   * Tests reading channels 30-34 directly to verify library indexing
+   */
+  void testDirectChannelReading() {
+    Serial.println("[DMX DIAGNOSTIC] Testing direct channel reading for channels 30-34:");
+
+    // Test both possible indexing schemes
+    Serial.println("Testing 0-based indexing (29-33):");
+    for (int i = 29; i <= 33; i++) {
+      uint8_t value = dmx.read(i);
+      Serial.printf("  dmx.read(%d) = %d (would be DMX channel %d)\n", i, value, i + 1);
+    }
+
+    Serial.println("Testing 1-based indexing (30-34):");
+    for (int i = 30; i <= 34; i++) {
+      uint8_t value = dmx.read(i);
+      Serial.printf("  dmx.read(%d) = %d (would be DMX channel %d)\n", i, value, i);
+    }
+
+    Serial.printf("Current baseChannel setting: %d\n", baseChannel);
+    Serial.println("Send non-zero values on your DMX channels 30-34 to see which indexing works");
   }
 }
