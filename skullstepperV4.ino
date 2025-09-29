@@ -12,6 +12,7 @@
 // ============================================================================
 
 #include "GlobalInterface.h"
+#include "HardwareConfig.h"
 #include "StepperController.h"
 #include "SerialInterface.h"
 #include "SystemConfig.h"
@@ -41,6 +42,13 @@ bool validateSystemIntegrity();
 // ============================================================================
 
 void setup() {
+  // ========================================================================
+  // Initialize Critical Hardware First
+  // ========================================================================
+  // Enable 5V level shifters for outputs (active LOW)
+  pinMode(ENABLE_OUTPUT_PIN, OUTPUT);
+  digitalWrite(ENABLE_OUTPUT_PIN, LOW);  // Enable level shifters
+
   Serial.begin(115200);
   delay(2000); // Give serial time to initialize
   Serial.println();
