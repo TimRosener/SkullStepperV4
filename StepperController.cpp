@@ -1,8 +1,8 @@
 // ============================================================================
 // File: StepperController.cpp
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
-// Version: 4.1.7
-// Date: 2025-02-02
+// Version: 4.1.16
+// Date: 2025-09-29
 // Author: Tim Rosener
 // Description: Thread-safe stepper motor control implementation with ODStepper
 //              Fixed: Homing speed now consistently uses homingSpeed config parameter

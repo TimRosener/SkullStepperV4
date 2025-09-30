@@ -1,8 +1,8 @@
 // ============================================================================
 // File: SafetyMonitor.cpp
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
-// Version: 4.0.0
-// Date: 2025-01-23
+// Version: 4.1.16
+// Date: 2025-09-29
 // Author: Tim Rosener
 // Description: SafetyMonitor module implementation - limit switches and safety systems
 // License: MIT

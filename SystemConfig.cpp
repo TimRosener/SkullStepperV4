@@ -1,8 +1,8 @@
 // ============================================================================
 // File: SystemConfig.cpp
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
-// Version: 4.0.0
-// Date: 2025-01-23
+// Version: 4.1.16
+// Date: 2025-09-29
 // Author: Tim Rosener
 // Description: SystemConfig module implementation - ESP32 flash-based storage
 // License: MIT

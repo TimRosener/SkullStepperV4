@@ -6,7 +6,7 @@
 // Author: Tim Rosener
 // Description: DMXReceiver module implementation - DMX512 signal reception
 // License: MIT
-// Phase: 6 (Active Development) - Phases 1-4 Implementation
+// Phase: 6 (Complete) - Full DMX512 compatibility with multiple controllers
 // ============================================================================
 
 #include "DMXReceiver.h"
@@ -26,7 +26,7 @@ namespace DMXReceiver {
   // ----------------------------------------------------------------------------
   // Debug control - set to false to disable debug output
   // ----------------------------------------------------------------------------
-  static const bool DMX_DEBUG_ENABLED = true;  // Set to true only when debugging
+  static const bool DMX_DEBUG_ENABLED = false;  // Set to true only when debugging
   
   // ----------------------------------------------------------------------------
   // Private Module Variables

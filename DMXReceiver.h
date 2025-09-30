@@ -6,7 +6,7 @@
 // Author: Tim Rosener
 // Description: DMXReceiver module interface - DMX512 signal reception
 // License: MIT
-// Phase: 6 (Active Development) - ESP32S3DMX Library Integration
+// Phase: 6 (Complete) - Full DMX512 compatibility
 // ============================================================================
 
 #ifndef DMXRECEIVER_H

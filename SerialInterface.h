@@ -1,8 +1,8 @@
 // ============================================================================
 // File: SerialInterface.h
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
-// Version: 4.1.13
-// Date: 2025-02-08
+// Version: 4.1.16
+// Date: 2025-09-29
 // Author: Tim Rosener
 // Description: SerialInterface module interface - command processing and communication
 // License: MIT

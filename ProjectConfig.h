@@ -10,8 +10,8 @@
 // Optional modules - enable/disable features
 #define ENABLE_WEB_INTERFACE  // PsychicHttp implementation - compatible with ESP32 core 3.x
 
-// Future modules (not yet implemented)
-// #define ENABLE_SAFETY_MONITOR
-// #define ENABLE_DMX_RECEIVER
+// Optional modules (disabled - functionality integrated elsewhere)
+// #define ENABLE_SAFETY_MONITOR  // Safety integrated into StepperController
+// Note: DMX is always enabled and fully functional (not optional)
 
 #endif // PROJECT_CONFIG_H

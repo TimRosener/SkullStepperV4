@@ -160,7 +160,7 @@ void setup() {
   // STEP 6: Initialize WebInterface (Optional)
   // ========================================================================
   #ifdef ENABLE_WEB_INTERFACE
-  Serial.println("\nSTEP 5: Initializing web interface...");
+  Serial.println("\nSTEP 6: Initializing web interface...");
   WebInterface::getInstance().begin();
   Serial.println("✓ WiFi Access Point created");
   Serial.print("✓ Web interface available at: http://");
@@ -171,7 +171,7 @@ void setup() {
   // ========================================================================
   // STEP 7: Validate System Integrity
   // ========================================================================
-  Serial.println("\nSTEP 6: Validating system integrity...");
+  Serial.println("\nSTEP 7: Validating system integrity...");
   if (!validateSystemIntegrity()) {
     Serial.println("WARNING: System integrity validation failed");
     Serial.println("Continuing with reduced functionality");
@@ -186,7 +186,7 @@ void setup() {
   
   Serial.println("============================================================================");
   Serial.println("COMPLETE THREAD-SAFE MOTION CONTROL SYSTEM READY");
-  Serial.println("DMX RECEIVER MODULE ACTIVE (Phase 1 Complete)");
+  Serial.println("DMX RECEIVER MODULE ACTIVE (Production Ready)");
   Serial.println("============================================================================");
   Serial.println("Features enabled:");
   Serial.println("  ✓ Thread-safe operation (FreeRTOS mutexes & queues)");
