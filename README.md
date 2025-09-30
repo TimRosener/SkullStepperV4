@@ -1,8 +1,8 @@
 # SkullStepperV4 - ESP32-S3 Closed-Loop Stepper Control System
 
-**Version**: 4.1.13  
-**Date**: 2025-02-08  
-**Status**: Production-Ready with DMX Development in Progress
+**Version**: 4.1.16
+**Date**: 2025-09-29
+**Status**: Production-Ready with Enhanced DMX Compatibility
 
 ## Project Structure
 
@@ -1159,19 +1159,17 @@ attachInterrupt(digitalPinToInterrupt(RIGHT_LIMIT_PIN), rightLimitISR, FALLING);
 
 Use `PARAMS` command for full parameter details with ranges and defaults.
 
-## Current Status Summary (v4.1.13 - 2025-02-08)
+## Current Status Summary (v4.1.16 - 2025-09-29)
 
 ### 🏆 Production-Ready System
 
 **Completed Modules:**
-✅ **Phase 1**: Hardware foundation and module framework - COMPLETE  
-✅ **Phase 2**: Configuration management with flash storage - COMPLETE  
-✅ **Phase 3**: Interactive command interface (human & JSON) - COMPLETE  
-✅ **Phase 4**: Motion control with ODStepper integration - COMPLETE  
+✅ **Phase 1**: Hardware foundation and module framework - COMPLETE
+✅ **Phase 2**: Configuration management with flash storage - COMPLETE
+✅ **Phase 3**: Interactive command interface (human & JSON) - COMPLETE
+✅ **Phase 4**: Motion control with ODStepper integration - COMPLETE
 ✅ **Phase 5**: WebInterface module - COMPLETE (Core system component)
-
-**Active Development:**
-🚧 **Phase 6**: DMXReceiver module - IN PROGRESS (Phases 1-5 of 8 complete)
+✅ **Phase 6**: DMXReceiver module - COMPLETE (Full compatibility with multiple controllers)
 
 **Future Enhancements:**
 🔄 **Phase 7**: SafetyMonitor module - OPTIONAL (safety already integrated)
@@ -1202,7 +1200,20 @@ Use `PARAMS` command for full parameter details with ranges and defaults.
    - Position limits enforcement
    - Homing required before movement
 
-### 🚀 Latest Enhancements (2025-02-07)
+5. **Universal DMX Compatibility**
+   - Works with DMX-192, Weigel, and other controllers
+   - Full 512-channel universe support
+   - Correct channel indexing (1-based to 0-based conversion)
+   - Robust data validation
+
+### 🚀 Latest Enhancements (v4.1.16 - 2025-09-29)
+
+- **Fixed DMX Channel Indexing**: Corrected off-by-one error where configured channel N was reading from channel N+1
+- **Weigel Controller Compatibility**: Switched to direct buffer access for full 512-channel universe support
+- **Removed Overly Aggressive Validation**: System now accepts all valid DMX patterns including [0,0,0,0,255]
+- **Documentation Improvements**: Fixed filename comment capitalization in SkullStepperV4.ino
+
+### Previous Enhancements (2025-02-07)
 
 - **Fixed DMX Zero Value Behavior**: DMX speed/acceleration channels now properly scale from minimum to maximum (0=slow, 255=fast) instead of jumping to defaults
 - **Improved Serial Output**: Removed "Task alive" messages that were corrupting output

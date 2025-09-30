@@ -5,6 +5,27 @@ All notable changes to the SkullStepperV4 project will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.16] - 2025-09-29
+
+### Fixed
+- **DMX Channel Indexing** - Fixed off-by-one error in DMX channel reading
+  - Corrected buffer indexing to use `baseChannel - 1` for proper 0-based array access
+  - DMX channel N now correctly maps to buffer index N-1
+  - Fixes issue where configured channel 30 was reading from channel 31
+- **Weigel Controller Compatibility** - Fixed DMX reception with full 512-channel universes
+  - Switched from `readChannels()` to direct `getBuffer()` access
+  - Bypasses library bug that affected full 512-channel DMX packets
+  - DMX-192 and Weigel controllers now both work correctly
+- **DMX Validation Logic** - Removed overly aggressive data pattern validation
+  - Removed rejection of valid patterns like [0,0,0,0,255] (HOME command)
+  - System now accepts all valid DMX data patterns
+  - Validation now relies on ESP32S3DMX library's built-in checks
+- **Documentation** - Fixed filename comment capitalization in SkullStepperV4.ino
+
+### Changed
+- DMX receiver now uses direct buffer access for improved compatibility across different DMX controllers
+- Removed "suspicious pattern" detection that was incorrectly flagging valid DMX commands
+
 ## [4.1.15] - 2025-02-08
 
 ### Changed

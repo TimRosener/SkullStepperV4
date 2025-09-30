@@ -1,8 +1,8 @@
 // ============================================================================
 // File: DMXReceiver.cpp
 // Project: SkullStepperV4 - ESP32-S3 Modular Stepper Control System
-// Version: 4.1.13
-// Date: 2025-02-03
+// Version: 4.1.16
+// Date: 2025-09-29
 // Author: Tim Rosener
 // Description: DMXReceiver module implementation - DMX512 signal reception
 // License: MIT
@@ -473,36 +473,39 @@ namespace DMXReceiver {
     
     // Create temporary buffer for reading
     uint8_t tempBuffer[NUM_CHANNELS];
-    
-    // Use the efficient readChannels method to read our 5 channels at once
-    uint16_t channelsRead = dmx.readChannels(tempBuffer, baseChannel, NUM_CHANNELS);
-    
-    // Check if we got all channels
-    if (channelsRead != NUM_CHANNELS) {
-      // Partial read - might indicate a short DMX universe
-      Serial.printf("[DMX] Warning: Only read %d of %d channels\n", channelsRead, NUM_CHANNELS);
-      for (uint16_t i = channelsRead; i < NUM_CHANNELS; i++) {
-        tempBuffer[i] = 0;  // Clear unread channels
+    uint16_t channelsRead = 0;
+
+    // Use direct buffer access instead of readChannels() for better compatibility
+    // with full 512-channel universes (fixes Weigel controller issue)
+    // Note: Buffer format is [ch1, ch2, ..., ch512] (start code already stripped)
+    // DMX channels are 1-based, so channel N is at buffer index N-1
+    const uint8_t* dmxBuffer = dmx.getBuffer();
+    if (dmxBuffer) {
+      // Direct copy from buffer at our base channel position
+      // Note: Buffer uses 0-based indexing, so channel 1 is at index 0
+      // Therefore to read DMX channel N, we access buffer[N-1]
+      memcpy(tempBuffer, dmxBuffer + (baseChannel - 1), NUM_CHANNELS);
+      channelsRead = NUM_CHANNELS;
+
+      // One-time diagnostic message when first receiving data
+      static bool firstDataReceived = false;
+      if (!firstDataReceived && (tempBuffer[0] > 0 || tempBuffer[1] > 0 || tempBuffer[2] > 0)) {
+        firstDataReceived = true;
+        Serial.println("[DMX] Successfully reading from buffer (direct access method)");
+        Serial.printf("[DMX] Base channel %d -> channels %d-%d\n",
+                      baseChannel, baseChannel, baseChannel + NUM_CHANNELS - 1);
+      }
+    } else {
+      // Buffer not available - zero out temp buffer
+      memset(tempBuffer, 0, NUM_CHANNELS);
+      channelsRead = 0;
+      static uint32_t lastBufferWarning = 0;
+      if (millis() - lastBufferWarning > 5000) {
+        Serial.println("[DMX] Warning: Buffer not available");
+        lastBufferWarning = millis();
       }
     }
-    
-    // Validate data before updating cache
-    bool dataValid = true;
-    
-    // Check for suspicious patterns (all 255s, all 0s except one channel)
-    int zeroCount = 0;
-    int ffCount = 0;
-    for (int i = 0; i < NUM_CHANNELS; i++) {
-      if (tempBuffer[i] == 0) zeroCount++;
-      if (tempBuffer[i] == 255) ffCount++;
-    }
-    
-    // Suspicious if all channels are 255, or 4 channels are 0 and one is 255
-    if (ffCount == NUM_CHANNELS || (zeroCount == NUM_CHANNELS - 1 && ffCount == 1)) {
-      dataValid = false;
-      Serial.printf("[DMX] Suspicious data pattern detected: zeros=%d, 255s=%d\n", zeroCount, ffCount);
-    }
-    
+
     // Special validation for mode channel (255 = homing)
     if (tempBuffer[CH_MODE] == 255) {
       // Check if this is a sudden spike
@@ -523,34 +526,27 @@ namespace DMXReceiver {
     
     // Update cache with mutex protection
     if (xSemaphoreTake(channelCacheMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
-      if (dataValid) {
-        // Check for significant changes before updating
-        bool significantChange = false;
-        for (int i = 0; i < NUM_CHANNELS; i++) {
-          int diff = abs(tempBuffer[i] - channelCache[i]);
-          if (diff > 5 && i != CH_MODE) {  // Allow small changes, except mode
-            significantChange = true;
-          }
-          if (i == CH_MODE && tempBuffer[i] != channelCache[i]) {
-            // Mode change is always significant
-            significantChange = true;
-            Serial.printf("[DMX] Mode channel changing: %d -> %d\n", channelCache[i], tempBuffer[i]);
-          }
+      // Check for significant changes before updating
+      bool significantChange = false;
+      for (int i = 0; i < NUM_CHANNELS; i++) {
+        int diff = abs(tempBuffer[i] - channelCache[i]);
+        if (diff > 5 && i != CH_MODE) {  // Allow small changes, except mode
+          significantChange = true;
         }
-        
-        if (significantChange) {
-          Serial.printf("[DMX] Channel update: [%d,%d,%d,%d,%d] -> [%d,%d,%d,%d,%d]\n",
-                       channelCache[0], channelCache[1], channelCache[2], channelCache[3], channelCache[4],
-                       tempBuffer[0], tempBuffer[1], tempBuffer[2], tempBuffer[3], tempBuffer[4]);
+        if (i == CH_MODE && tempBuffer[i] != channelCache[i]) {
+          // Mode change is always significant
+          significantChange = true;
+          Serial.printf("[DMX] Mode channel changing: %d -> %d\n", channelCache[i], tempBuffer[i]);
         }
-        
-        memcpy(channelCache, tempBuffer, NUM_CHANNELS);
-        memcpy(lastValidChannels, tempBuffer, NUM_CHANNELS);
-      } else {
-        // Use last known good values
-        Serial.println("[DMX] Invalid data detected, using last known good values");
-        memcpy(channelCache, lastValidChannels, NUM_CHANNELS);
       }
+
+      if (significantChange) {
+        Serial.printf("[DMX] Channel update: [%d,%d,%d,%d,%d] -> [%d,%d,%d,%d,%d]\n",
+                     channelCache[0], channelCache[1], channelCache[2], channelCache[3], channelCache[4],
+                     tempBuffer[0], tempBuffer[1], tempBuffer[2], tempBuffer[3], tempBuffer[4]);
+      }
+
+      memcpy(channelCache, tempBuffer, NUM_CHANNELS);
       xSemaphoreGive(channelCacheMutex);
     }
     
@@ -765,13 +761,14 @@ namespace DMXReceiver {
   }
   
   uint16_t getChannelValue(uint16_t channel) {
-    // Validate channel number
+    // Validate channel number (1-based DMX channel numbers)
     if (channel < 1 || channel > 512) {
       return 0;
     }
-    
+
     // Use the library's read method for individual channel access
-    return dmx.read(channel);
+    // Note: ESP32S3DMX uses 0-based indexing, convert from 1-based DMX channel
+    return dmx.read(channel - 1);
   }
   
   uint32_t getLastUpdateTime() {

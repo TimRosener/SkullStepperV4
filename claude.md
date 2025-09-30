@@ -280,7 +280,7 @@ Fixes #issue_number (if applicable)
 - Real-time control and monitoring
 
 ## Version Information
-- **Current Version**: 4.1.15 (2025-02-08)
-- **Status**: Production-ready with DMX in development
+- **Current Version**: 4.1.16 (2025-09-29)
+- **Status**: Production-ready with enhanced DMX compatibility
 - **Target Platform**: ESP32-S3
 - **Framework**: Arduino with FreeRTOS
